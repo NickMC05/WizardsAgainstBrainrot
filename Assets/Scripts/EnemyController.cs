@@ -7,6 +7,7 @@ public class EnemyController : MonoBehaviour
     public float health;               // Current health of the enemy
     public float moveSpeed = 5f;      // Speed at which the enemy moves
     public float rotationSpeed = 5f;   // Speed of rotation to face the player
+    public GameObject EnemyWaveController;
 
     void Start()
     {
@@ -35,4 +36,23 @@ public class EnemyController : MonoBehaviour
             transform.position += direction * moveSpeed * Time.deltaTime;
         }
     }
+
+    public void TakeDamage(float damage)
+    {
+        health -= damage;
+        Debug.Log("Enemy hit! Remaining health: " + health);
+
+        if (health <= 0)
+        {
+            Die();
+        }
+    }
+
+    void Die()
+    {
+        Debug.Log("Enemy died!");
+        EnemyWaveController.GetComponent<EnemyWaveScript>().enemyKilled();
+        Destroy(gameObject); // Destroy the enemy game object
+    }
+
 }

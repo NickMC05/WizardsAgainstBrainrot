@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using TMPro;
 
 public class EnemyWaveScript : MonoBehaviour
 {
@@ -22,6 +23,7 @@ public class EnemyWaveScript : MonoBehaviour
     public float minRange = 5;
     public int enemiesKilled = 0;
     public Transform playerTransform;
+    public TMP_Text killAndWaveCounter;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -34,8 +36,13 @@ public class EnemyWaveScript : MonoBehaviour
         if(enemiesKilled >= waves[currentWave].GetMonsterSpawnList().Length)
         {
             enemiesKilled = 0;
-            currentWave++;
-            SpawnWave();
+            Debug.Log("wave cleared!");
+            if(currentWave < waves.Length-1)
+            {
+                currentWave++;
+                updateUI();
+                SpawnWave();
+            }
         }
     }
 
@@ -45,6 +52,7 @@ public class EnemyWaveScript : MonoBehaviour
         {
             var spawnedMon = Instantiate(monster, FindSpawnLoc(), Quaternion.identity);
             spawnedMon.GetComponent<EnemyController>().playerTransform = playerTransform;
+            spawnedMon.GetComponent<EnemyController>().EnemyWaveController = this.gameObject;
         }
     }
 
@@ -66,5 +74,16 @@ public class EnemyWaveScript : MonoBehaviour
         {
             return FindSpawnLoc();
         }
+    }
+
+    public void enemyKilled()
+    {
+        enemiesKilled++;
+        updateUI();
+    }
+
+    void updateUI()
+    {
+        killAndWaveCounter.text = $"Kills: {enemiesKilled}\nWave: {currentWave}";
     }
 }
