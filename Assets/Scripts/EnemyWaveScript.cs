@@ -24,6 +24,7 @@ public class EnemyWaveScript : MonoBehaviour
     public int enemiesKilled = 0;
     public Transform playerTransform;
     public TMP_Text killAndWaveCounter;
+    public GameObject waveOverScreen;
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
@@ -37,12 +38,18 @@ public class EnemyWaveScript : MonoBehaviour
         {
             enemiesKilled = 0;
             Debug.Log("wave cleared!");
-            if(currentWave < waves.Length-1)
-            {
-                currentWave++;
-                updateUI();
-                SpawnWave();
-            }
+            waveOverScreen.SetActive(true);
+        }
+    }
+
+    public void NextWave()
+    {
+        if (currentWave < waves.Length - 1)
+        {
+            waveOverScreen.SetActive(false);
+            currentWave++;
+            updateUI();
+            SpawnWave();
         }
     }
 
