@@ -190,6 +190,7 @@ GameObject:
   - component: {fileID: 1543555569226984785}
   - component: {fileID: 7808988950852297688}
   - component: {fileID: 9069209217353696372}
+  - component: {fileID: -869053165197743616}
   m_Layer: 0
   m_Name: fireballvfxPrefab
   m_TagString: Untagged
@@ -277,9 +278,34 @@ MonoBehaviour:
   speed: 12
   lifetime: 8
   spawnGracePeriod: 0.15
-  localLaunchDirection: {x: 0, y: -1, z: 0}
+  spawnForwardOffset: 0.3
   directDamage: 40
   explosionRadius: 2
   explosionDamage: 20
   explosionScaleMultiplier: 3
   explosionDuration: 0.3
+--- !u!114 &-869053165197743616
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6917245603990592789}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 02537091a486b1147be95253082fa919, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::FireballTrail
+  trailWidth: 0.15
+  trailTime: 0.4
+  trailStartColor: {r: 1, g: 0.5, b: 0, a: 1}
+  trailEndColor: {r: 1, g: 0.1, b: 0, a: 0}
+  emissionRate: 40
+  particleLifetime: 0.5
+  particleSize: 0.08
+  particleStartColor: {r: 1, g: 0.6, b: 0, a: 1}
+  particleEndColor: {r: 1, g: 0.1, b: 0, a: 0}
+  emberRate: 15
+  emberLifetime: 0.8
+  emberSize: 0.03
+  emberColor: {r: 1, g: 0.8, b: 0.2, a: 1}

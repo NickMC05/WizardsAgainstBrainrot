@@ -1,4 +1,4 @@
-using System.Collections;
+﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -10,9 +10,7 @@ public class Fireball : MonoBehaviour
     [SerializeField] private float speed = 12f;
     [SerializeField] private float lifetime = 8f;
     [SerializeField] private float spawnGracePeriod = 0.15f;
-
-    [Tooltip("Local axis to launch along. Try (0,1,0) or (0,0,1) until it fires outward from the wand.")]
-    [SerializeField] private Vector3 localLaunchDirection = Vector3.forward;
+    [SerializeField] private float spawnForwardOffset = 0.3f;
 
     [Header("Damage")]
     [SerializeField] private float directDamage = 40f;
@@ -20,13 +18,17 @@ public class Fireball : MonoBehaviour
     [SerializeField] private float explosionDamage = 20f;
 
     [Header("Explosion Visual")]
-    [SerializeField] private float explosionScaleMultiplier = 3f;
+    [SerializeField] private float explosionScaleMultiplier = 2.5f;
     [SerializeField] private float explosionDuration = 0.3f;
 
     private Rigidbody rb;
     private SphereCollider col;
+    private FireballTrail trail;
     private bool hasExploded;
     private float spawnTime;
+
+    private Vector3 launchDirection;
+    private bool directionSet = false;
 
     void Awake()
     {
@@ -38,23 +40,37 @@ public class Fireball : MonoBehaviour
 
         col = GetComponent<SphereCollider>();
         col.isTrigger = false;
+
+        trail = GetComponent<FireballTrail>();
+    }
+
+    /// <summary>
+    /// Call this right after Instantiate to set the launch direction.
+    /// </summary>
+    public void SetDirection(Vector3 direction)
+    {
+        launchDirection = direction.normalized;
+        directionSet = true;
     }
 
     void Start()
     {
         spawnTime = Time.time;
 
-        // Convert the local launch direction to world space
-        Vector3 worldDir = transform.TransformDirection(localLaunchDirection.normalized);
+        // If no direction was set externally, try common wand axes
+        if (!directionSet)
+        {
+            // Most wand tips point forward along -Z or the up axis
+            // Change this line if your wand tip uses a different axis
+            launchDirection = -transform.up;
+        }
 
-        // Offset forward slightly so we don't spawn inside the wand
-        transform.position += worldDir * 0.15f;
+        // Push the fireball out so it doesn't clip the wand
+        transform.position += launchDirection * spawnForwardOffset;
 
-        // Point the fireball along the launch direction and fire it
-        transform.rotation = Quaternion.LookRotation(worldDir);
-        rb.linearVelocity = worldDir * speed;
+        rb.linearVelocity = launchDirection * speed;
 
-        Debug.Log("Fireball launched direction: " + worldDir + " from " + transform.position);
+        Debug.Log("Fireball launched direction: " + launchDirection);
 
         Destroy(gameObject, lifetime);
     }
@@ -62,15 +78,13 @@ public class Fireball : MonoBehaviour
     void OnCollisionEnter(Collision collision)
     {
         if (hasExploded) return;
-
-        // Ignore collisions during grace period
         if (Time.time - spawnTime < spawnGracePeriod) return;
 
         string hitName = collision.gameObject.name;
         bool hitGround = hitName == "Ground plane" || hitName.Contains("Ground");
         bool hitEnemy = collision.gameObject.GetComponent<EnemyController>() != null;
 
-        Debug.Log("Fireball collided with: " + hitName);
+        Debug.Log("Fireball hit: " + hitName);
 
         if (!hitGround && !hitEnemy) return;
 
@@ -92,7 +106,11 @@ public class Fireball : MonoBehaviour
         rb.isKinematic = true;
         col.enabled = false;
 
-        // Splash damage
+        if (trail != null)
+        {
+            trail.DetachAndFade();
+        }
+
         Collider[] hits = Physics.OverlapSphere(transform.position, explosionRadius);
         HashSet<EnemyController> damaged = new HashSet<EnemyController>();
 
@@ -116,6 +134,14 @@ public class Fireball : MonoBehaviour
         Vector3 originalScale = transform.localScale;
         Vector3 targetScale = originalScale * explosionScaleMultiplier;
         float elapsed = 0f;
+
+        Renderer rend = GetComponentInChildren<Renderer>();
+        if (rend != null)
+        {
+            Color explosionTint = new Color(1f, 0.4f, 0f, 1f);
+            rend.material.SetColor("_BaseColor", explosionTint);
+            rend.material.SetColor("_Color", explosionTint);
+        }
 
         while (elapsed < explosionDuration)
         {
