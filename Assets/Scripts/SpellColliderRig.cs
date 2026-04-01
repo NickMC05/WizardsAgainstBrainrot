@@ -6,24 +6,26 @@ public class SpellColliderRig : MonoBehaviour
     [Tooltip("Leave empty to auto-find Camera.main at Start")]
     [SerializeField] private Transform headTransform;
 
+    [Header("Materials (REQUIRED — create in Editor)")]
+    [Tooltip("Transparent URP/Lit material for the circle nodes")]
+    [SerializeField] private Material nodeMaterial;
+
     [Header("Pentagon Layout")]
     [SerializeField] private float distanceFromHead = 0.45f;
-    [SerializeField] private float pentagonRadius = 0.12f;
-    [SerializeField] private float heightOffset = -0.05f;
-    [SerializeField] private float nodeSize = 0.06f;
+    [SerializeField] private float pentagonRadius   = 0.12f;
+    [SerializeField] private float heightOffset     = -0.05f;
+    [SerializeField] private float nodeSize         = 0.06f;
 
     [Tooltip("Degrees to rotate all five points. 0 = node 1 at top.")]
     [SerializeField] private float angleOffset = 0f;
 
     [Header("Background Image")]
-    [Tooltip("Drag your pentagonal PNG here (import as Texture2D with Alpha Is Transparency)")]
-    [SerializeField] private Texture2D pentagonImage;
+    [Tooltip("Drag your PNG here (import as Sprite)")]
+    [SerializeField] private Sprite pentagonSprite;
     [SerializeField] private float imageSize = 0.35f;
-    [Tooltip("Push the image slightly behind the circles so it never z-fights")]
     [SerializeField] private float imageDepthOffset = 0.005f;
 
     [Header("Follow Behaviour")]
-    [Tooltip("Higher = snappier tracking")]
     [SerializeField] private float followSpeed = 12f;
 
     private SpellCollider[] nodes;
@@ -43,66 +45,39 @@ public class SpellColliderRig : MonoBehaviour
             }
         }
 
+        if (nodeMaterial == null)
+            Debug.LogError("[SpellColliderRig] nodeMaterial is not assigned! Circles will be pink/purple on Quest.");
+
         BuildBackgroundImage();
         BuildPentagon();
     }
 
     // ─────────────────────────────────────────────
-    //  Background PNG quad
+    //  Background PNG via SpriteRenderer
     // ─────────────────────────────────────────────
     void BuildBackgroundImage()
     {
-        if (pentagonImage == null)
+        if (pentagonSprite == null)
         {
-            Debug.Log("[SpellColliderRig] No pentagonImage assigned — skipping background quad.");
+            Debug.Log("[SpellColliderRig] No pentagonSprite assigned — skipping background.");
             return;
         }
 
-        GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-        quad.name = "PentagonBackground";
-        quad.transform.SetParent(transform);
+        GameObject bg = new GameObject("PentagonBackground");
+        bg.transform.SetParent(transform);
+        bg.transform.localPosition = new Vector3(0f, 0f, imageDepthOffset);
+        bg.transform.localRotation = Quaternion.identity;
 
-        // Position the quad slightly behind the circle plane
-        quad.transform.localPosition = new Vector3(0f, 0f, imageDepthOffset);
-        quad.transform.localRotation = Quaternion.identity;
+        SpriteRenderer sr = bg.AddComponent<SpriteRenderer>();
+        sr.sprite = pentagonSprite;
+        sr.sortingOrder = -1;
+        sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        sr.receiveShadows = false;
 
-        // Preserve the image's aspect ratio
-        float aspect = (float)pentagonImage.width / pentagonImage.height;
-        quad.transform.localScale = new Vector3(imageSize * aspect, imageSize, 1f);
-
-        // The quad should never interfere with wand trigger detection
-        Collider col = quad.GetComponent<Collider>();
-        if (col != null) DestroyImmediate(col);
-
-        // --- transparent unlit material ---
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null) shader = Shader.Find("Unlit/Transparent");
-        if (shader == null) shader = Shader.Find("Standard");
-
-        Material mat = new Material(shader);
-
-        // Assign texture to both URP and legacy properties
-        mat.SetTexture("_BaseMap", pentagonImage);
-        mat.mainTexture = pentagonImage;
-
-        // URP transparency
-        mat.SetFloat("_Surface", 1f);
-        mat.SetFloat("_Blend", 0f);
-        mat.SetFloat("_AlphaClip", 0f);
-        mat.SetOverrideTag("RenderType", "Transparent");
-        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-        mat.SetInt("_ZWrite", 0);
-        mat.EnableKeyword("_ALPHABLEND_ON");
-        mat.renderQueue = 3000;
-
-        mat.SetColor("_BaseColor", Color.white);
-        mat.SetColor("_Color", Color.white);
-
-        Renderer rend = quad.GetComponent<Renderer>();
-        rend.material = mat;
-        rend.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        rend.receiveShadows = false;
+        // Scale to desired world-space size
+        float spriteWorldWidth = pentagonSprite.bounds.size.x;
+        float scaleFactor = imageSize / spriteWorldWidth;
+        bg.transform.localScale = Vector3.one * scaleFactor;
     }
 
     // ─────────────────────────────────────────────
@@ -118,14 +93,9 @@ public class SpellColliderRig : MonoBehaviour
             disc.name = $"SpellNode_{i + 1}";
             disc.transform.SetParent(transform);
 
-            // Flatten the cylinder into a thin disc
             disc.transform.localScale = new Vector3(nodeSize, 0.001f, nodeSize);
-
-            // Rotate so the flat face points toward the player (-Z local)
             disc.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
 
-            // Place around the pentagon.
-            // Node 1 starts at the top (90°), each subsequent node is 72° clockwise.
             float angleDeg = 90f - (i * 72f) + angleOffset;
             float angleRad = angleDeg * Mathf.Deg2Rad;
             disc.transform.localPosition = new Vector3(
@@ -134,7 +104,7 @@ public class SpellColliderRig : MonoBehaviour
                 0f);
 
             SpellCollider sc = disc.AddComponent<SpellCollider>();
-            sc.Initialize(i + 1);
+            sc.Initialize(i + 1, nodeMaterial);
             nodes[i] = sc;
         }
     }
@@ -149,7 +119,7 @@ public class SpellColliderRig : MonoBehaviour
         float yaw = headTransform.eulerAngles.y;
         Quaternion yawRot = Quaternion.Euler(0f, yaw, 0f);
 
-        Vector3 forward = yawRot * Vector3.forward;
+        Vector3 forward   = yawRot * Vector3.forward;
         Vector3 targetPos = headTransform.position
                           + forward * distanceFromHead
                           + Vector3.up * heightOffset;

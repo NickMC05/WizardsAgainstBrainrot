@@ -1271,12 +1271,13 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpellColliderRig
   headTransform: {fileID: 249246498}
-  distanceFromHead: 0.8
+  nodeMaterial: {fileID: -876546973899608171, guid: 4ff4bf42ffc12e34a9c53b2f216f5442, type: 3}
+  distanceFromHead: 0.7
   pentagonRadius: 0.2
   heightOffset: -0.05
   nodeSize: 0.1
   angleOffset: 0
-  pentagonImage: {fileID: 2800000, guid: baaa0fe2565431e45a37e591be399c18, type: 3}
+  pentagonSprite: {fileID: 21300000, guid: baaa0fe2565431e45a37e591be399c18, type: 3}
   imageSize: 0.6
   imageDepthOffset: 0.005
   followSpeed: 12
