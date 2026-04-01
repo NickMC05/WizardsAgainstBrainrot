@@ -1207,6 +1207,10 @@ MonoBehaviour:
     pattern: 123451
     spellColor: {r: 0.76729554, g: 0.29165766, b: 0.28713253, a: 0}
     effectPrefab: {fileID: 6917245603990592789, guid: 6c4be01c3bdef0148bfda1938b8dc951, type: 3}
+  - spellName: Lightning
+    pattern: 1524
+    spellColor: {r: 1, g: 0.875397, b: 0, a: 1}
+    effectPrefab: {fileID: 6917245603990592789, guid: 6c4be01c3bdef0148bfda1938b8dc951, type: 3}
   castOrigin: {fileID: 1899591836}
   debugLog: 1
 --- !u!4 &837308440
@@ -2456,7 +2460,7 @@ MeshRenderer:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1864587112}
-  m_Enabled: 1
+  m_Enabled: 0
   m_CastShadows: 1
   m_ReceiveShadows: 1
   m_DynamicOccludee: 1
