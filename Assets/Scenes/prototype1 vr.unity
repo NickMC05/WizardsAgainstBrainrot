@@ -1280,7 +1280,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::SpellManager
   spells:
   - spellName: Fireball
-    pattern: 123451
+    pattern: 12345
     spellColor: {r: 0.76729554, g: 0.29165766, b: 0.28713253, a: 0}
     effectPrefab: {fileID: 6917245603990592789, guid: 6c4be01c3bdef0148bfda1938b8dc951, type: 3}
   - spellName: Lightning
