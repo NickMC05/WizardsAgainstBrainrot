@@ -2662,39 +2662,28 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 18064c588759342ec82d1f80760e721e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::EnemyWaveScript
-  waves:
-  - monsterSpawn:
-    - {fileID: 3359352231201344670, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
-    - {fileID: 3359352231201344670, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-  - monsterSpawn:
-    - {fileID: 3359352231201344670, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
-    - {fileID: 3359352231201344670, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
-    - {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
+  monsterPool:
+  - monsterPrefab: {fileID: 3359352231201344670, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
+    spawnChance: 57
+  - monsterPrefab: {fileID: 2510488959509700886, guid: ab0605d336d254b7992295fe37648ffa, type: 3}
+    spawnChance: 69.6
+  - monsterPrefab: {fileID: 2510488959509700886, guid: c7b6d854428423a4db887e084aa22cf3, type: 3}
+    spawnChance: 50.2
+  - monsterPrefab: {fileID: 2510488959509700886, guid: c1239cbae9ba038409b67d414a8c3f25, type: 3}
+    spawnChance: 54.9
+  - monsterPrefab: {fileID: 2510488959509700886, guid: 47498682e4a147144abeb5951311ae5c, type: 3}
+    spawnChance: 76.1
+  - monsterPrefab: {fileID: 2510488959509700886, guid: eac0b12e367e24144abb7b488d71faaf, type: 3}
+    spawnChance: 32.9
+  fibWave1Count: 3
+  fibWave2Count: 5
   spawnRange: 20
   minRange: 5
-  enemiesKilled: 0
   playerTransform: {fileID: 1864587116}
   killAndWaveCounter: {fileID: 1797571236}
   waveOverScreen: {fileID: 1436916194}
   aliveEnemies: []
+  enemiesKilled: 0
 --- !u!4 &1984762589
 Transform:
   m_ObjectHideFlags: 0
