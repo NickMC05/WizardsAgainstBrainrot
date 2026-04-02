@@ -57,17 +57,20 @@ public class Fireball : MonoBehaviour
     {
         spawnTime = Time.time;
 
-        // If no direction was set externally, try common wand axes
+        // If SpellManager already set our velocity before re-enabling
+        // this component, skip auto-launch — we are already flying.
+        if (rb.linearVelocity.sqrMagnitude > 0.01f)
+        {
+            Destroy(gameObject, lifetime);
+            return;
+        }
+
         if (!directionSet)
         {
-            // Most wand tips point forward along -Z or the up axis
-            // Change this line if your wand tip uses a different axis
             launchDirection = -transform.up;
         }
 
-        // Push the fireball out so it doesn't clip the wand
         transform.position += launchDirection * spawnForwardOffset;
-
         rb.linearVelocity = launchDirection * speed;
 
         Debug.Log("Fireball launched direction: " + launchDirection);

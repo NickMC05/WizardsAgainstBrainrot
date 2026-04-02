@@ -38,26 +38,19 @@ public class SpellManager : MonoBehaviour
     private GameObject heldProjectile;
     private Rigidbody heldProjectileRb;
 
+    // Components we disabled while the projectile is held
+    private List<MonoBehaviour> disabledScripts = new List<MonoBehaviour>();
+    private List<Collider> disabledColliders = new List<Collider>();
+
     public bool IsCasting => isCasting;
     public string CurrentPattern => currentPattern;
     public SpellDefinition LoadedSpell => loadedSpell;
 
-    /// <summary>Fired when the player begins drawing a pattern.</summary>
     public event Action OnCastingStarted;
-
-    /// <summary>Fired after the pattern has been evaluated and reset.</summary>
     public event Action OnCastingEnded;
-
-    /// <summary>Fired with the matched spell when a pattern succeeds.</summary>
     public event Action<SpellDefinition> OnSpellCast;
-
-    /// <summary>Fired with the unmatched pattern string on failure.</summary>
     public event Action<string> OnSpellFailed;
-
-    /// <summary>Fired when a registered spell pattern is detected inside the current drawing.</summary>
     public event Action<SpellDefinition> OnSpellLoaded;
-
-    /// <summary>Fired when no spell pattern is detected any more.</summary>
     public event Action OnSpellUnloaded;
 
     void Awake()
@@ -70,13 +63,21 @@ public class SpellManager : MonoBehaviour
         Instance = this;
     }
 
-    // ????????????????????????? Casting lifecycle ?????????????????????????
+    // ───────────────────── Follow held projectile ─────────────────────
+
+    void LateUpdate()
+    {
+        if (heldProjectile != null && castOrigin != null)
+        {
+            heldProjectile.transform.position = castOrigin.position;
+            heldProjectile.transform.rotation = castOrigin.rotation;
+        }
+    }
+
+    // ───────────────────── Casting lifecycle ─────────────────────
 
     public void StartCasting()
     {
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
-        audioMgr.PlayMagicPlaySFX();
-
         isCasting = true;
         currentPattern = "";
         loadedSpell = null;
@@ -89,14 +90,10 @@ public class SpellManager : MonoBehaviour
 
     public void AddToPattern(int colliderIndex)
     {
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
-        audioMgr.PlayClickSFX();
-
         if (!isCasting) return;
 
         string indexStr = colliderIndex.ToString();
 
-        // Prevent the same node from being registered twice in a row
         if (currentPattern.Length > 0 &&
             currentPattern[currentPattern.Length - 1].ToString() == indexStr)
             return;
@@ -137,16 +134,11 @@ public class SpellManager : MonoBehaviour
         OnCastingEnded?.Invoke();
     }
 
-    // ????????????????????????? Pattern evaluation ?????????????????????????
+    // ───────────────────── Pattern evaluation ─────────────────────
 
-    /// <summary>
-    /// Finds the longest registered spell pattern that appears as a
-    /// substring of the current drawing. Spawns / swaps the held
-    /// projectile when the result changes.
-    /// </summary>
     private void EvaluatePattern()
     {
-        // Once a spell has been loaded, lock it in � no switching
+        // Once a spell has been loaded, lock it in
         if (loadedSpell != null) return;
 
         SpellDefinition bestMatch = null;
@@ -175,21 +167,18 @@ public class SpellManager : MonoBehaviour
         }
     }
 
-    // ????????????????????????? Projectile management ?????????????????????????
+    // ───────────────────── Projectile management ─────────────────────
 
     private void SpawnHeldProjectile(SpellDefinition spell)
     {
         if (spell.effectPrefab == null || castOrigin == null) return;
 
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
-        audioMgr.PlaySpellCastedSFX();
-
         heldProjectile = Instantiate(spell.effectPrefab, castOrigin.position, castOrigin.rotation);
-        heldProjectile.transform.SetParent(castOrigin);
-        heldProjectile.transform.localPosition = Vector3.zero;
-        heldProjectile.transform.localRotation = Quaternion.identity;
 
-        // Ensure a Rigidbody exists for the launch phase
+        // ── Do NOT parent ── LateUpdate tracks position instead,
+        //    which avoids scale-shearing / egg-warping artefacts.
+
+        // Ensure a Rigidbody exists and freeze it
         heldProjectileRb = heldProjectile.GetComponent<Rigidbody>();
         if (heldProjectileRb == null)
             heldProjectileRb = heldProjectile.AddComponent<Rigidbody>();
@@ -198,17 +187,38 @@ public class SpellManager : MonoBehaviour
         heldProjectileRb.useGravity = false;
         heldProjectileRb.interpolation = RigidbodyInterpolation.Interpolate;
 
+        // Disable every MonoBehaviour on the prefab so their
+        // Start / Update don't run while the spell is held
+        disabledScripts.Clear();
+        foreach (var mb in heldProjectile.GetComponentsInChildren<MonoBehaviour>())
+        {
+            if (mb.enabled)
+            {
+                mb.enabled = false;
+                disabledScripts.Add(mb);
+            }
+        }
+
+        // Disable colliders so the held spell doesn't bump into things
+        disabledColliders.Clear();
+        foreach (var col in heldProjectile.GetComponentsInChildren<Collider>())
+        {
+            if (col.enabled)
+            {
+                col.enabled = false;
+                disabledColliders.Add(col);
+            }
+        }
+
         if (debugLog)
-            Debug.Log($"[SpellManager] Projectile spawned for {spell.spellName}.");
+            Debug.Log($"[SpellManager] Projectile spawned (held) for {spell.spellName}.");
     }
 
     private void LaunchProjectile()
     {
         if (heldProjectile == null) return;
 
-        // Unparent so it flies freely
-        heldProjectile.transform.SetParent(null);
-
+        // Physics setup
         if (heldProjectileRb != null)
         {
             heldProjectileRb.isKinematic = false;
@@ -216,6 +226,22 @@ public class SpellManager : MonoBehaviour
             heldProjectileRb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
             heldProjectileRb.linearVelocity = castOrigin.forward * launchSpeed;
         }
+
+        // Re-enable colliders
+        foreach (var col in disabledColliders)
+        {
+            if (col != null)
+                col.enabled = true;
+        }
+        disabledColliders.Clear();
+
+        // Re-enable scripts (their Start() will run next frame)
+        foreach (var mb in disabledScripts)
+        {
+            if (mb != null)
+                mb.enabled = true;
+        }
+        disabledScripts.Clear();
 
         Destroy(heldProjectile, projectileLifetime);
 
@@ -234,5 +260,7 @@ public class SpellManager : MonoBehaviour
             heldProjectile = null;
             heldProjectileRb = null;
         }
+        disabledScripts.Clear();
+        disabledColliders.Clear();
     }
 }
