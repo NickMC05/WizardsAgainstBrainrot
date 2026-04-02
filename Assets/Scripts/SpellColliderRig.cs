@@ -93,7 +93,7 @@ public class SpellColliderRig : MonoBehaviour
             disc.name = $"SpellNode_{i + 1}";
             disc.transform.SetParent(transform);
 
-            disc.transform.localScale = new Vector3(nodeSize, 0.1f, nodeSize);
+            disc.transform.localScale = new Vector3(nodeSize, 0.2f, nodeSize);
             disc.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
 
             float angleDeg = 90f - (i * 72f) + angleOffset;

@@ -1,11 +1,21 @@
 ﻿using UnityEngine;
 
-[RequireComponent(typeof(SphereCollider))]
+[RequireComponent(typeof(CapsuleCollider))]
 [RequireComponent(typeof(Rigidbody))]
 public class WandTipDetector : MonoBehaviour
 {
     [SerializeField] private SpellManager spellManager;
     [SerializeField] private WandController wandController;
+
+    [Header("Wand Collider Shape")]
+    [Tooltip("Which local axis runs along the wand length (0=X, 1=Y, 2=Z)")]
+    [SerializeField] private int capsuleDirection = 2;
+    [Tooltip("Total length of the capsule along the wand")]
+    [SerializeField] private float capsuleHeight = 0.3f;
+    [Tooltip("Radius of the capsule — keep small so it doesn't trigger distant nodes")]
+    [SerializeField] private float capsuleRadius = 0.015f;
+    [Tooltip("Local offset so the capsule sits along the wand body, not just the tip")]
+    [SerializeField] private Vector3 capsuleCenter = new Vector3(0f, 0f, -0.12f);
 
     [Header("Spell Indicator")]
     [Tooltip("Transparent URP/Lit material (create in Editor to avoid purple on Quest)")]
@@ -16,7 +26,7 @@ public class WandTipDetector : MonoBehaviour
     [SerializeField] private float pulseMin = 0.7f;
     [SerializeField] private float pulseMax = 1.3f;
 
-    private SphereCollider sphereCol;
+    private CapsuleCollider capsuleCol;
     private GameObject indicatorObj;
     private Material indicatorMatInst;
     private Color currentSpellColor;
@@ -24,9 +34,12 @@ public class WandTipDetector : MonoBehaviour
 
     void Awake()
     {
-        sphereCol = GetComponent<SphereCollider>();
-        sphereCol.isTrigger = true;
-        sphereCol.radius = 0.02f;
+        capsuleCol = GetComponent<CapsuleCollider>();
+        capsuleCol.isTrigger = true;
+        capsuleCol.direction = capsuleDirection;
+        capsuleCol.height = capsuleHeight;
+        capsuleCol.radius = capsuleRadius;
+        capsuleCol.center = capsuleCenter;
 
         Rigidbody rb = GetComponent<Rigidbody>();
         rb.isKinematic = true;
@@ -151,19 +164,50 @@ public class WandTipDetector : MonoBehaviour
     // ───────────────────────── Overlap / Trigger ─────────────────────────
 
     /// <summary>
-    /// Checks whether the wand tip is already overlapping a spell node
+    /// Computes the two sphere centres of the capsule in world space.
+    /// </summary>
+    private void GetCapsuleEnds(out Vector3 point0, out Vector3 point1)
+    {
+        Vector3 worldCenter = transform.TransformPoint(capsuleCol.center);
+
+        Vector3 localAxis;
+        switch (capsuleCol.direction)
+        {
+            case 0: localAxis = transform.right; break;
+            case 1: localAxis = transform.up; break;
+            default: localAxis = transform.forward; break;
+        }
+
+        float halfHeight = Mathf.Max(0f, capsuleCol.height * 0.5f - capsuleCol.radius);
+        float scale;
+        switch (capsuleCol.direction)
+        {
+            case 0: scale = transform.lossyScale.x; break;
+            case 1: scale = transform.lossyScale.y; break;
+            default: scale = transform.lossyScale.z; break;
+        }
+        halfHeight *= Mathf.Abs(scale);
+
+        point0 = worldCenter + localAxis * halfHeight;
+        point1 = worldCenter - localAxis * halfHeight;
+    }
+
+    /// <summary>
+    /// Checks whether the wand is already overlapping a spell node
     /// at the moment the player starts casting.
     /// </summary>
     public void CheckInitialOverlaps()
     {
         if (spellManager == null || !spellManager.IsCasting) return;
 
-        float worldRadius = sphereCol.radius * Mathf.Max(
+        GetCapsuleEnds(out Vector3 p0, out Vector3 p1);
+
+        float worldRadius = capsuleCol.radius * Mathf.Max(
             transform.lossyScale.x,
             transform.lossyScale.y,
             transform.lossyScale.z);
 
-        Collider[] hits = Physics.OverlapSphere(transform.position, worldRadius);
+        Collider[] hits = Physics.OverlapCapsule(p0, p1, worldRadius);
         foreach (Collider hit in hits)
         {
             SpellCollider sc = hit.GetComponent<SpellCollider>();

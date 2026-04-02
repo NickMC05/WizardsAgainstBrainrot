@@ -26,6 +26,7 @@ public class Fireball : MonoBehaviour
     private FireballTrail trail;
     private bool hasExploded;
     private float spawnTime;
+    private float currentSpeed;
 
     private Vector3 launchDirection;
     private bool directionSet = false;
@@ -38,8 +39,16 @@ public class Fireball : MonoBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
+        // No drag so it never slows down
+        rb.linearDamping = 0f;
+        rb.angularDamping = 0f;
+
+        // Freeze rotation so it doesn't tumble
+        rb.constraints = RigidbodyConstraints.FreezeRotation;
+
         col = GetComponent<SphereCollider>();
-        col.isTrigger = false;
+        // TRIGGER so Unity physics never bounces or deflects us
+        col.isTrigger = true;
 
         trail = GetComponent<FireballTrail>();
     }
@@ -61,6 +70,7 @@ public class Fireball : MonoBehaviour
         // this component, skip auto-launch — we are already flying.
         if (rb.linearVelocity.sqrMagnitude > 0.01f)
         {
+            currentSpeed = rb.linearVelocity.magnitude;
             Destroy(gameObject, lifetime);
             return;
         }
@@ -72,31 +82,53 @@ public class Fireball : MonoBehaviour
 
         transform.position += launchDirection * spawnForwardOffset;
         rb.linearVelocity = launchDirection * speed;
+        currentSpeed = speed;
 
         Debug.Log("Fireball launched direction: " + launchDirection);
 
         Destroy(gameObject, lifetime);
     }
 
-    void OnCollisionEnter(Collision collision)
+    /// <summary>
+    /// Lock velocity to a constant speed every physics step.
+    /// Prevents any drift, slowdown, or directional wobble.
+    /// </summary>
+    void FixedUpdate()
     {
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
-        audioMgr.PlaySpellExplodeSFX();
+        if (hasExploded) return;
+        if (rb.isKinematic) return;
 
+        // Force constant speed in whatever direction we are going
+        Vector3 dir = rb.linearVelocity.normalized;
+        if (dir.sqrMagnitude > 0.001f)
+        {
+            rb.linearVelocity = dir * currentSpeed;
+        }
+    }
+
+    /// <summary>
+    /// Trigger-based detection — no physics bounce, no deflection.
+    /// </summary>
+    void OnTriggerEnter(Collider other)
+    {
         if (hasExploded) return;
         if (Time.time - spawnTime < spawnGracePeriod) return;
 
-        string hitName = collision.gameObject.name;
-        bool hitGround = hitName == "Ground plane" || hitName.Contains("Ground");
-        bool hitEnemy = collision.gameObject.GetComponent<EnemyController>() != null;
-
-        Debug.Log("Fireball hit: " + hitName);
+        bool hitEnemy = other.GetComponent<EnemyController>() != null;
+        bool hitGround = other.gameObject.name == "Ground plane"
+                      || other.gameObject.name.Contains("Ground");
 
         if (!hitGround && !hitEnemy) return;
 
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        if (audioMgr != null)
+        {
+            audioMgr.PlaySpellExplodeSFX();
+        }
+
         if (hitEnemy)
         {
-            EnemyController directHit = collision.gameObject.GetComponent<EnemyController>();
+            EnemyController directHit = other.GetComponent<EnemyController>();
             directHit.TakeDamage(directDamage);
         }
 
