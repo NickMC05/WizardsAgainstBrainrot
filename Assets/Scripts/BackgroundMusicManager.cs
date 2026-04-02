@@ -517,6 +517,9 @@ public class BackgroundMusicManager : MonoBehaviour
 }
 
 // ==================== 📦 CUSTOM ATTRIBUTE FOR READ-ONLY INSPECTOR ====================
+
+public class ReadOnlyAttribute : PropertyAttribute { }
+
 #if UNITY_EDITOR
 [CustomPropertyDrawer(typeof(ReadOnlyAttribute))]
 public class ReadOnlyDrawer : PropertyDrawer
@@ -528,6 +531,4 @@ public class ReadOnlyDrawer : PropertyDrawer
         GUI.enabled = true;
     }
 }
-
-public class ReadOnlyAttribute : PropertyAttribute { }
 #endif
