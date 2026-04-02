@@ -77,6 +77,9 @@ public class Fireball : MonoBehaviour
 
     void OnCollisionEnter(Collision collision)
     {
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        audioMgr.PlaySpellExplodeSFX();
+
         if (hasExploded) return;
         if (Time.time - spawnTime < spawnGracePeriod) return;
 

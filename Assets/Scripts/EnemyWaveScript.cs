@@ -139,6 +139,7 @@ public class EnemyWaveScript : MonoBehaviour
             {
                 Vector3 spawnPos = FindValidSpawnLocation();
                 GameObject spawned = Instantiate(selected, spawnPos, Quaternion.identity);
+                spawned.name = selected.name;
 
                 // Inject dependencies
                 var enemyCtrl = spawned.GetComponent<EnemyController>();

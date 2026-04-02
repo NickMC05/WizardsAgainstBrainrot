@@ -74,6 +74,9 @@ public class SpellManager : MonoBehaviour
 
     public void StartCasting()
     {
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        audioMgr.PlayMagicPlaySFX();
+
         isCasting = true;
         currentPattern = "";
         loadedSpell = null;
@@ -86,6 +89,9 @@ public class SpellManager : MonoBehaviour
 
     public void AddToPattern(int colliderIndex)
     {
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        audioMgr.PlayClickSFX();
+
         if (!isCasting) return;
 
         string indexStr = colliderIndex.ToString();
@@ -174,6 +180,9 @@ public class SpellManager : MonoBehaviour
     private void SpawnHeldProjectile(SpellDefinition spell)
     {
         if (spell.effectPrefab == null || castOrigin == null) return;
+
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        audioMgr.PlaySpellCastedSFX();
 
         heldProjectile = Instantiate(spell.effectPrefab, castOrigin.position, castOrigin.rotation);
         heldProjectile.transform.SetParent(castOrigin);

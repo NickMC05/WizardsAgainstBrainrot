@@ -34,6 +34,9 @@ public class EnemyController : MonoBehaviour
 
     public void TakeDamage(float damage)
     {
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        audioMgr.PlayVoiceLine(gameObject.name);
+
         health -= damage;
         Debug.Log("Enemy hit! Remaining health: " + health);
 
