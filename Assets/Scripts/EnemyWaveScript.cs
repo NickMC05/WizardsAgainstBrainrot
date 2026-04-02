@@ -6,17 +6,11 @@ using TMPro;
 public class EnemyWaveScript : MonoBehaviour
 {
     [System.Serializable]
-
     public class WaveContent
     {
         [SerializeField] GameObject[] monsterSpawn;
-
-        public GameObject[] GetMonsterSpawnList()
-        {
-            return monsterSpawn;
-        }
+        public GameObject[] GetMonsterSpawnList() => monsterSpawn;
     }
-
     [SerializeField] WaveContent[] waves;
     int currentWave = 0;
     public float spawnRange = 20;
@@ -25,16 +19,25 @@ public class EnemyWaveScript : MonoBehaviour
     public Transform playerTransform;
     public TMP_Text killAndWaveCounter;
     public GameObject waveOverScreen;
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
+
+    // Public list of currently alive enemies (hidden in inspector by default).
+    [HideInInspector]
+    public List<GameObject> aliveEnemies = new List<GameObject>();
+
     void Start()
     {
         SpawnWave();
+        updateUI();
     }
 
-    // Update is called once per frame
     void Update()
     {
-        if(enemiesKilled >= waves[currentWave].GetMonsterSpawnList().Length)
+        // Safety: ensure currentWave is valid
+        if (waves == null || waves.Length == 0) return;
+        if (currentWave < 0 || currentWave >= waves.Length) return;
+
+        // If no alive enemies OR the killed count matches wave size, show wave over.
+        if (aliveEnemies.Count == 0 && enemiesKilled >= waves[currentWave].GetMonsterSpawnList().Length)
         {
             enemiesKilled = 0;
             Debug.Log("wave cleared!");
@@ -55,12 +58,28 @@ public class EnemyWaveScript : MonoBehaviour
 
     void SpawnWave()
     {
-        foreach (var monster in waves[currentWave].GetMonsterSpawnList())
+        // Clear any leftover references before spawning
+        aliveEnemies.Clear();
+
+        var list = waves[currentWave].GetMonsterSpawnList();
+        if (list == null) return;
+
+        foreach (var monster in list)
         {
             var spawnedMon = Instantiate(monster, FindSpawnLoc(), Quaternion.identity);
-            spawnedMon.GetComponent<EnemyController>().playerTransform = playerTransform;
-            spawnedMon.GetComponent<EnemyController>().EnemyWaveController = this.gameObject;
+            // assign references on enemy
+            var enemyController = spawnedMon.GetComponent<EnemyController>();
+            if (enemyController != null)
+            {
+                enemyController.playerTransform = playerTransform;
+                enemyController.EnemyWaveController = this; // assign script reference
+            }
+
+            // Keep track of alive enemies
+            aliveEnemies.Add(spawnedMon);
         }
+
+        updateUI();
     }
 
     Vector3 FindSpawnLoc()
@@ -83,13 +102,33 @@ public class EnemyWaveScript : MonoBehaviour
         }
     }
 
-    public void enemyKilled()
+    // Call this when an enemy dies. This removes the enemy from aliveEnemies and updates counters/UI.
+    public void RemoveEnemyReference(GameObject enemy)
     {
-        enemiesKilled++;
-        updateUI();
+        if (enemy == null) return;
+
+        if (aliveEnemies.Contains(enemy))
+        {
+            aliveEnemies.Remove(enemy);
+            enemiesKilled++;
+            updateUI();
+            Debug.Log($"[EnemyWaveScript] enemiesKilled incremented to {enemiesKilled}. Current aliveEnemies count: {aliveEnemies.Count}");
+            for (int i = 0; i < aliveEnemies.Count; i++)
+            {
+                var e = aliveEnemies[i];
+                if (e == null)
+                {
+                    Debug.Log($"[EnemyWaveScript] aliveEnemies[{i}] = null (will be removed)");
+                }
+                else
+                {
+                    Debug.Log($"[EnemyWaveScript] aliveEnemies[{i}] = {e.name}");
+                }
+            }
+        }
     }
 
-    void updateUI()
+        void updateUI()
     {
         killAndWaveCounter.text = $"Kills: {enemiesKilled}\nWave: {currentWave}";
     }
