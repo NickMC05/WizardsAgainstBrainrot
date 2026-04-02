@@ -1406,8 +1406,8 @@ MonoBehaviour:
   - key: enemy6
     clip: {fileID: 8300000, guid: 5396bdb41b757284fafb717443ed49c1, type: 3}
   sfxVolume: 0.65
-  voiceVolume: 3
-  voiceVolumeMultiplier: 2
+  voiceVolume: 1
+  voiceVolumeMultiplier: 4
   sfxPoolSize: 4
   spatializeSFX: 0
 --- !u!4 &945987139
@@ -1455,7 +1455,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpellColliderRig
   headTransform: {fileID: 249246498}
-  nodeMaterial: {fileID: -876546973899608171, guid: 4ff4bf42ffc12e34a9c53b2f216f5442, type: 3}
+  nodeMaterial: {fileID: 2100000, guid: 7a723ecfb519e7945a7fa67bed0a57f1, type: 2}
   distanceFromHead: 0.7
   pentagonRadius: 0.2
   heightOffset: -0.05
