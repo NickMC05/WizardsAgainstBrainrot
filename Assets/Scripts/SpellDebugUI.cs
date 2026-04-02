@@ -8,6 +8,7 @@ public class SpellDebugUI : MonoBehaviour
     [SerializeField] Color successColor = Color.green;
     [SerializeField] Color failColor = Color.red;
     [SerializeField] Color drawingColor = Color.white;
+    [SerializeField] Color loadedColor = Color.yellow;
 
     float messageTimer;
     bool showingResult;
@@ -15,7 +16,6 @@ public class SpellDebugUI : MonoBehaviour
 
     void Update()
     {
-        // Late subscribe once SpellManager is ready
         if (!subscribed && SpellManager.Instance != null)
         {
             SpellManager.Instance.OnCastingStarted += HandleCastingStarted;
@@ -26,17 +26,25 @@ public class SpellDebugUI : MonoBehaviour
             Debug.Log("[SpellDebugUI] Subscribed to SpellManager events.");
         }
 
-        // While drawing, show live pattern
         if (SpellManager.Instance != null && SpellManager.Instance.IsCasting && !showingResult)
         {
             string pattern = SpellManager.Instance.CurrentPattern;
-            displayText.color = drawingColor;
-            displayText.text = pattern.Length > 0
-                ? $"Drawing: {pattern}"
-                : "Drawing...";
+            SpellDefinition loaded = SpellManager.Instance.LoadedSpell;
+
+            if (loaded != null)
+            {
+                displayText.color = loadedColor;
+                displayText.text = $"Release to cast: {loaded.spellName}\nPattern: {pattern}";
+            }
+            else
+            {
+                displayText.color = drawingColor;
+                displayText.text = pattern.Length > 0
+                    ? $"Drawing: {pattern}"
+                    : "Drawing...";
+            }
         }
 
-        // Count down result message
         if (showingResult)
         {
             messageTimer -= Time.deltaTime;
@@ -64,7 +72,6 @@ public class SpellDebugUI : MonoBehaviour
         showingResult = false;
         displayText.text = "Drawing...";
         displayText.color = drawingColor;
-        Debug.Log("[SpellDebugUI] Casting started.");
     }
 
     void HandleCastingEnded()
@@ -78,7 +85,6 @@ public class SpellDebugUI : MonoBehaviour
         displayText.text = $">> {spell.spellName} <<";
         showingResult = true;
         messageTimer = messageDuration;
-        Debug.Log($"[SpellDebugUI] Spell cast: {spell.spellName}");
     }
 
     void HandleSpellFailed(string pattern)
@@ -87,6 +93,5 @@ public class SpellDebugUI : MonoBehaviour
         displayText.text = $"No match: {pattern}";
         showingResult = true;
         messageTimer = messageDuration;
-        Debug.Log($"[SpellDebugUI] Spell failed: {pattern}");
     }
 }

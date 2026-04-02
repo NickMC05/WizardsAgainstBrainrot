@@ -1210,8 +1210,11 @@ MonoBehaviour:
   - spellName: Lightning
     pattern: 1524
     spellColor: {r: 1, g: 0.875397, b: 0, a: 1}
-    effectPrefab: {fileID: 6917245603990592789, guid: 6c4be01c3bdef0148bfda1938b8dc951, type: 3}
+    effectPrefab: {fileID: 7345867173630032592, guid: 686899483628e44408c94ef66d0b61a9, type: 3}
   castOrigin: {fileID: 1899591836}
+  launchSpeed: 20
+  projectileLifetime: 8
+  useGravityAfterLaunch: 0
   debugLog: 1
 --- !u!4 &837308440
 Transform:
@@ -1930,6 +1933,7 @@ MonoBehaviour:
   successColor: {r: 0, g: 1, b: 0, a: 1}
   failColor: {r: 1, g: 0, b: 0, a: 1}
   drawingColor: {r: 1, g: 1, b: 1, a: 1}
+  loadedColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
 --- !u!1 &1575482799
 GameObject:
   m_ObjectHideFlags: 0
@@ -2560,6 +2564,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::WandTipDetector
   spellManager: {fileID: 837308439}
   wandController: {fileID: 2496838976917957526}
+  indicatorMaterial: {fileID: 0}
+  indicatorSize: 0.04
+  emissionIntensity: 5
+  pulseSpeed: 3
+  pulseMin: 0.7
+  pulseMax: 1.3
 --- !u!54 &1899591834
 Rigidbody:
   m_ObjectHideFlags: 0
@@ -2616,13 +2626,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1899591832}
   serializedVersion: 2
-  m_LocalRotation: {x: 0, y: -0.7071068, z: -0.7071068, w: 0}
+  m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
   m_LocalPosition: {x: 0.0069957958, y: 0.0023295968, z: -0.627348}
   m_LocalScale: {x: 1, y: 0.69958025, z: 0.69958025}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1515837614115284016}
-  m_LocalEulerAnglesHint: {x: 270, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 180, z: 0}
 --- !u!1 &1984762587
 GameObject:
   m_ObjectHideFlags: 0
@@ -2684,6 +2694,7 @@ MonoBehaviour:
   playerTransform: {fileID: 1864587116}
   killAndWaveCounter: {fileID: 1797571236}
   waveOverScreen: {fileID: 1436916194}
+  aliveEnemies: []
 --- !u!4 &1984762589
 Transform:
   m_ObjectHideFlags: 0

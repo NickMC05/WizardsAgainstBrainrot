@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -22,14 +22,25 @@ public class SpellManager : MonoBehaviour
     [Tooltip("Transform at the wand tip where spell effects originate")]
     [SerializeField] private Transform castOrigin;
 
+    [Header("Projectile")]
+    [SerializeField] private float launchSpeed = 20f;
+    [SerializeField] private float projectileLifetime = 8f;
+    [SerializeField] private bool useGravityAfterLaunch = false;
+
     [Header("Debug")]
     [SerializeField] private bool debugLog = true;
 
     private string currentPattern = "";
     private bool isCasting;
+    private SpellDefinition loadedSpell;
+
+    // Held projectile state
+    private GameObject heldProjectile;
+    private Rigidbody heldProjectileRb;
 
     public bool IsCasting => isCasting;
     public string CurrentPattern => currentPattern;
+    public SpellDefinition LoadedSpell => loadedSpell;
 
     /// <summary>Fired when the player begins drawing a pattern.</summary>
     public event Action OnCastingStarted;
@@ -43,6 +54,12 @@ public class SpellManager : MonoBehaviour
     /// <summary>Fired with the unmatched pattern string on failure.</summary>
     public event Action<string> OnSpellFailed;
 
+    /// <summary>Fired when a registered spell pattern is detected inside the current drawing.</summary>
+    public event Action<SpellDefinition> OnSpellLoaded;
+
+    /// <summary>Fired when no spell pattern is detected any more.</summary>
+    public event Action OnSpellUnloaded;
+
     void Awake()
     {
         if (Instance != null && Instance != this)
@@ -53,10 +70,14 @@ public class SpellManager : MonoBehaviour
         Instance = this;
     }
 
+    // ????????????????????????? Casting lifecycle ?????????????????????????
+
     public void StartCasting()
     {
         isCasting = true;
         currentPattern = "";
+        loadedSpell = null;
+        DestroyHeldProjectile();
         OnCastingStarted?.Invoke();
 
         if (debugLog)
@@ -70,7 +91,6 @@ public class SpellManager : MonoBehaviour
         string indexStr = colliderIndex.ToString();
 
         // Prevent the same node from being registered twice in a row
-        // (guards against physics jitter at collider boundaries).
         if (currentPattern.Length > 0 &&
             currentPattern[currentPattern.Length - 1].ToString() == indexStr)
             return;
@@ -79,6 +99,8 @@ public class SpellManager : MonoBehaviour
 
         if (debugLog)
             Debug.Log($"[SpellManager] Pattern so far: {currentPattern}");
+
+        EvaluatePattern();
     }
 
     public void FinishCasting()
@@ -89,40 +111,119 @@ public class SpellManager : MonoBehaviour
         if (debugLog)
             Debug.Log($"[SpellManager] Casting finished. Final pattern: {currentPattern}");
 
-        // Attempt to match
-        SpellDefinition matched = null;
-        for (int i = 0; i < spells.Count; i++)
+        if (loadedSpell != null)
         {
-            if (spells[i].pattern == currentPattern)
-            {
-                matched = spells[i];
-                break;
-            }
+            Debug.Log($"[SpellManager] >>> SPELL CAST: {loadedSpell.spellName} <<<");
+            LaunchProjectile();
+            OnSpellCast?.Invoke(loadedSpell);
         }
-
-        if (matched != null)
-            CastSpell(matched);
         else
         {
+            DestroyHeldProjectile();
+
             if (debugLog)
                 Debug.Log($"[SpellManager] No spell matches '{currentPattern}'.");
             OnSpellFailed?.Invoke(currentPattern);
         }
 
+        loadedSpell = null;
         currentPattern = "";
         OnCastingEnded?.Invoke();
     }
 
-    private void CastSpell(SpellDefinition spell)
-    {
-        Debug.Log($"[SpellManager] >>> SPELL CAST: {spell.spellName} <<<");
+    // ????????????????????????? Pattern evaluation ?????????????????????????
 
-        if (spell.effectPrefab != null && castOrigin != null)
+    /// <summary>
+    /// Finds the longest registered spell pattern that appears as a
+    /// substring of the current drawing. Spawns / swaps the held
+    /// projectile when the result changes.
+    /// </summary>
+    private void EvaluatePattern()
+    {
+        // Once a spell has been loaded, lock it in � no switching
+        if (loadedSpell != null) return;
+
+        SpellDefinition bestMatch = null;
+        int bestLength = 0;
+
+        for (int i = 0; i < spells.Count; i++)
         {
-            GameObject fx = Instantiate(spell.effectPrefab, castOrigin.position, castOrigin.rotation);
-            Destroy(fx, 5f);
+            if (string.IsNullOrEmpty(spells[i].pattern)) continue;
+
+            if (currentPattern.Contains(spells[i].pattern) &&
+                spells[i].pattern.Length > bestLength)
+            {
+                bestMatch = spells[i];
+                bestLength = spells[i].pattern.Length;
+            }
         }
 
-        OnSpellCast?.Invoke(spell);
+        if (bestMatch != null)
+        {
+            loadedSpell = bestMatch;
+            SpawnHeldProjectile(loadedSpell);
+
+            if (debugLog)
+                Debug.Log($"[SpellManager] Spell loaded (locked): {loadedSpell.spellName}");
+            OnSpellLoaded?.Invoke(loadedSpell);
+        }
+    }
+
+    // ????????????????????????? Projectile management ?????????????????????????
+
+    private void SpawnHeldProjectile(SpellDefinition spell)
+    {
+        if (spell.effectPrefab == null || castOrigin == null) return;
+
+        heldProjectile = Instantiate(spell.effectPrefab, castOrigin.position, castOrigin.rotation);
+        heldProjectile.transform.SetParent(castOrigin);
+        heldProjectile.transform.localPosition = Vector3.zero;
+        heldProjectile.transform.localRotation = Quaternion.identity;
+
+        // Ensure a Rigidbody exists for the launch phase
+        heldProjectileRb = heldProjectile.GetComponent<Rigidbody>();
+        if (heldProjectileRb == null)
+            heldProjectileRb = heldProjectile.AddComponent<Rigidbody>();
+
+        heldProjectileRb.isKinematic = true;
+        heldProjectileRb.useGravity = false;
+        heldProjectileRb.interpolation = RigidbodyInterpolation.Interpolate;
+
+        if (debugLog)
+            Debug.Log($"[SpellManager] Projectile spawned for {spell.spellName}.");
+    }
+
+    private void LaunchProjectile()
+    {
+        if (heldProjectile == null) return;
+
+        // Unparent so it flies freely
+        heldProjectile.transform.SetParent(null);
+
+        if (heldProjectileRb != null)
+        {
+            heldProjectileRb.isKinematic = false;
+            heldProjectileRb.useGravity = useGravityAfterLaunch;
+            heldProjectileRb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            heldProjectileRb.linearVelocity = castOrigin.forward * launchSpeed;
+        }
+
+        Destroy(heldProjectile, projectileLifetime);
+
+        if (debugLog)
+            Debug.Log($"[SpellManager] Projectile launched at {launchSpeed} m/s.");
+
+        heldProjectile = null;
+        heldProjectileRb = null;
+    }
+
+    private void DestroyHeldProjectile()
+    {
+        if (heldProjectile != null)
+        {
+            Destroy(heldProjectile);
+            heldProjectile = null;
+            heldProjectileRb = null;
+        }
     }
 }
