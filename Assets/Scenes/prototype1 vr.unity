@@ -1560,6 +1560,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1181678662
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1181678663}
+  m_Layer: 0
+  m_Name: pos1
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1181678663
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1181678662}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.12, y: 0, z: 30.78}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1200087172
 GameObject:
   m_ObjectHideFlags: 0
@@ -3158,6 +3189,37 @@ Transform:
   - {fileID: 1984762589}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1879584718
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1879584719}
+  m_Layer: 0
+  m_Name: pos2
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1879584719
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1879584718}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -30.06, y: 0, z: 1.66}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1899591832
 GameObject:
   m_ObjectHideFlags: 0
@@ -3302,10 +3364,18 @@ MonoBehaviour:
     spawnChance: 76.1
   - monsterPrefab: {fileID: 2510488959509700886, guid: eac0b12e367e24144abb7b488d71faaf, type: 3}
     spawnChance: 32.9
+  spawnPoints:
+  - {fileID: 1181678662}
+  - {fileID: 1879584718}
   fibWave1Count: 3
   fibWave2Count: 5
   spawnRange: 20
   minRange: 5
+  spawnPointRadius: 5
+  minSpawnBatchSize: 3
+  maxSpawnBatchSize: 5
+  spawnBatchDelay: 1
+  spawnIndividualDelay: 0.5
   playerTransform: {fileID: 1864587116}
   killAndWaveCounter: {fileID: 1797571236}
   waveOverScreen: {fileID: 1436916194}
@@ -3529,3 +3599,5 @@ SceneRoots:
   - {fileID: 1012543030}
   - {fileID: 572893532}
   - {fileID: 945987139}
+  - {fileID: 1181678663}
+  - {fileID: 1879584719}

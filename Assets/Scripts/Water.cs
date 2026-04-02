@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 [RequireComponent(typeof(Rigidbody))]
-[RequireComponent(typeof(SphereCollider))]
+[RequireComponent(typeof(BoxCollider))]
 public class WaveSpell : MonoBehaviour
 {
     [Header("Movement")]
@@ -22,7 +22,7 @@ public class WaveSpell : MonoBehaviour
     [SerializeField] private float pulseAmount = 0.2f;
 
     private Rigidbody rb;
-    private SphereCollider col;
+    private BoxCollider col;
     private FireballTrail trail;
     private float spawnTime;
     private Vector3 launchDirection;
@@ -35,12 +35,12 @@ public class WaveSpell : MonoBehaviour
     {
         rb = GetComponent<Rigidbody>();
         rb.useGravity = false;
-        rb.isKinematic = false; // Make sure it's not kinematic
+        rb.isKinematic = false;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
 
-        col = GetComponent<SphereCollider>();
-        col.isTrigger = false;
+        col = GetComponent<BoxCollider>();
+        col.isTrigger = true; // Make it a trigger so it doesn't physically collide
 
         trail = GetComponent<FireballTrail>();
         originalScale = transform.localScale;
@@ -100,16 +100,15 @@ public class WaveSpell : MonoBehaviour
         velocity.y = 0;
         rb.linearVelocity = velocity;
 
-        // Double-check velocity was set
-        Debug.Log("Wave spell velocity set to: " + rb.linearVelocity + " speed: " + speed);
+        Debug.Log("Wave spell launched direction: " + launchDirection + " at fixed Y: " + fixedYPosition);
 
         Destroy(gameObject, lifetime);
     }
 
     void FixedUpdate()
     {
-        // Keep velocity constant (in case something tries to change it)
-        if (!hasExploded && rb != null)
+        // Keep velocity constant
+        if (rb != null)
         {
             Vector3 velocity = launchDirection * speed;
             velocity.y = 0;
@@ -129,12 +128,12 @@ public class WaveSpell : MonoBehaviour
         transform.localScale = originalScale * pulse;
     }
 
-    void OnCollisionEnter(Collision collision)
+    void OnTriggerEnter(Collider other)
     {
-        // Don't explode or destroy on collision
+        // Use OnTriggerEnter instead of OnCollisionEnter since collider is a trigger
         if (Time.time - spawnTime < spawnGracePeriod) return;
 
-        EnemyController hitEnemy = collision.gameObject.GetComponent<EnemyController>();
+        EnemyController hitEnemy = other.GetComponent<EnemyController>();
 
         if (hitEnemy != null)
         {
@@ -154,8 +153,6 @@ public class WaveSpell : MonoBehaviour
             Debug.Log("Wave spell hit enemy: " + hitEnemy.name + " for " + directDamage + " damage");
         }
     }
-
-    private bool hasExploded = false; // Dummy variable for FixedUpdate check
 
     void OnDrawGizmosSelected()
     {

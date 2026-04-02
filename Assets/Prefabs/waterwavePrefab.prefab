@@ -30,7 +30,7 @@ Transform:
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 25, y: 5, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 7032364086814636337}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -121,7 +121,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7032364086814636337}
   - component: {fileID: 1543555569226984785}
-  - component: {fileID: 7808988950852297688}
+  - component: {fileID: 5941262703032370435}
   - component: {fileID: 1883443688090339110}
   m_Layer: 0
   m_Name: waterwavePrefab
@@ -173,8 +173,8 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 116
   m_CollisionDetection: 0
---- !u!135 &7808988950852297688
-SphereCollider:
+--- !u!65 &5941262703032370435
+BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
@@ -192,7 +192,7 @@ SphereCollider:
   m_ProvidesContacts: 0
   m_Enabled: 1
   serializedVersion: 3
-  m_Radius: 0.5
+  m_Size: {x: 25, y: 5, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &1883443688090339110
 MonoBehaviour:

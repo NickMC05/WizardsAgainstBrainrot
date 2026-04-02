@@ -84,11 +84,12 @@ public class BackgroundMusicManager : MonoBehaviour
     [Tooltip("🔊 Voice volume multiplier. Default 3.0 = 3x louder. Lower to 1.0-2.0 if clipping occurs.")]
     [SerializeField] private float voiceVolumeMultiplier = 3.0f;
 
-    [SerializeField, Range(1, 8)] private int sfxPoolSize = 4;
+    [SerializeField, Range(1, 16)] private int sfxPoolSize = 8;
+    [SerializeField, Range(1, 8)] private int voicePoolSize = 4;
     [SerializeField] private bool spatializeSFX = false;
 
     private List<AudioSource> sfxPool = new List<AudioSource>();
-    private AudioSource voiceSource;
+    private List<AudioSource> voicePool = new List<AudioSource>();
     private Dictionary<string, AudioClip> voiceDict = new Dictionary<string, AudioClip>();
     private HashSet<AudioSource> positionalSources = new HashSet<AudioSource>();
 
@@ -100,11 +101,7 @@ public class BackgroundMusicManager : MonoBehaviour
         musicSource.playOnAwake = false;
         musicSource.loop = false;
 
-        voiceSource = gameObject.AddComponent<AudioSource>();
-        voiceSource.playOnAwake = false;
-        voiceSource.loop = false;
-        voiceSource.spatialBlend = spatializeSFX ? 1f : 0f;
-
+        // Create SFX pool
         for (int i = 0; i < Mathf.Max(1, sfxPoolSize); i++)
         {
             var sfxSource = gameObject.AddComponent<AudioSource>();
@@ -113,6 +110,17 @@ public class BackgroundMusicManager : MonoBehaviour
             sfxSource.spatialBlend = spatializeSFX ? 1f : 0f;
             sfxSource.priority = 128;
             sfxPool.Add(sfxSource);
+        }
+
+        // Create Voice pool (for simultaneous voice lines)
+        for (int i = 0; i < Mathf.Max(1, voicePoolSize); i++)
+        {
+            var voiceSource = gameObject.AddComponent<AudioSource>();
+            voiceSource.playOnAwake = false;
+            voiceSource.loop = false;
+            voiceSource.spatialBlend = spatializeSFX ? 1f : 0f;
+            voiceSource.priority = 64; // Higher priority for voices
+            voicePool.Add(voiceSource);
         }
 
         BuildVoiceDictionary();
@@ -125,6 +133,7 @@ public class BackgroundMusicManager : MonoBehaviour
     {
         SetVolume(masterVolume);
         SetSFXVolume(sfxVolume);
+        SetVoiceVolume(voiceVolume);
 
         if (musicPlaylist.Count > 0)
             PlayMusic();
@@ -223,6 +232,9 @@ public class BackgroundMusicManager : MonoBehaviour
     public void PlaySpellCastedSFX() => PlayOneShotSFX(spellCastedSFX, sfxVolume);
     public void PlaySpellExplodeSFX() => PlayOneShotSFX(spellExplodeSFX, sfxVolume);
 
+    /// <summary>
+    /// Play a voice line (multiple can play simultaneously)
+    /// </summary>
     public bool PlayVoiceLine(string key)
     {
         if (string.IsNullOrEmpty(key)) return false;
@@ -237,6 +249,53 @@ public class BackgroundMusicManager : MonoBehaviour
         return false;
     }
 
+    /// <summary>
+    /// Play a voice line and get the AudioSource reference (for stopping/customizing)
+    /// </summary>
+    public AudioSource PlayVoiceLineWithReference(string key, float volumeOverride = -1)
+    {
+        if (string.IsNullOrEmpty(key)) return null;
+        string lookupKey = key.ToLowerInvariant();
+
+        if (voiceDict.TryGetValue(lookupKey, out AudioClip clip) && clip != null)
+        {
+            float finalVolume = volumeOverride >= 0 ? volumeOverride : voiceVolume;
+            return PlayOneShotVoiceWithReference(clip, finalVolume);
+        }
+        Debug.LogWarning($"🗣️ Voice line '{key}' not found");
+        return null;
+    }
+
+    /// <summary>
+    /// Stop a specific voice line by its AudioSource
+    /// </summary>
+    public void StopVoiceLine(AudioSource voiceSource)
+    {
+        if (voiceSource != null && voiceSource.isPlaying)
+            voiceSource.Stop();
+    }
+
+    /// <summary>
+    /// Stop all currently playing voice lines
+    /// </summary>
+    public void StopAllVoiceLines()
+    {
+        foreach (var source in voicePool)
+            if (source.isPlaying) source.Stop();
+    }
+
+    /// <summary>
+    /// Play multiple voice lines sequentially with optional delay between them
+    /// </summary>
+    public void PlayVoiceLineSequence(List<string> keys, float delayBetween = 0.5f)
+    {
+        if (keys == null || keys.Count == 0) return;
+        StartCoroutine(PlayVoiceSequenceCoroutine(keys, delayBetween));
+    }
+
+    /// <summary>
+    /// Play a custom SFX (multiple can play simultaneously)
+    /// </summary>
     public void PlayCustomSFX(AudioClip clip, float volume = 1f, float pitch = 1f)
     {
         if (clip == null) return;
@@ -246,6 +305,25 @@ public class BackgroundMusicManager : MonoBehaviour
             source.pitch = pitch;
             source.PlayOneShot(clip, Mathf.Clamp01(volume));
         }
+    }
+
+    /// <summary>
+    /// Play custom SFX and get reference to the AudioSource
+    /// </summary>
+    public AudioSource PlayCustomSFXWithReference(AudioClip clip, float volume = 1f, float pitch = 1f)
+    {
+        if (clip == null) return null;
+        var source = GetAvailableSFXSource();
+        if (source != null)
+        {
+            source.pitch = pitch;
+            source.volume = Mathf.Clamp01(volume);
+            source.clip = clip;
+            source.Play();
+            StartCoroutine(ClearClipAfterPlayback(source));
+            return source;
+        }
+        return null;
     }
 
     public void PlaySFXAtPosition(AudioClip clip, Vector3 position, float volume = 1f)
@@ -262,17 +340,82 @@ public class BackgroundMusicManager : MonoBehaviour
         }
     }
 
-    public void SetSFXVolume(float newVolume) => sfxVolume = Mathf.Clamp01(newVolume);
-    public void SetVoiceVolume(float newVolume) => voiceVolume = Mathf.Clamp01(newVolume);
+    /// <summary>
+    /// Play an SFX that loops until stopped
+    /// </summary>
+    public AudioSource PlayLoopingSFX(AudioClip clip, float volume = 1f)
+    {
+        if (clip == null) return null;
+        var source = GetAvailableSFXSource();
+        if (source != null)
+        {
+            source.clip = clip;
+            source.volume = Mathf.Clamp01(volume);
+            source.loop = true;
+            source.Play();
+            return source;
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Stop a looping SFX
+    /// </summary>
+    public void StopLoopingSFX(AudioSource source)
+    {
+        if (source != null)
+        {
+            source.loop = false;
+            source.Stop();
+            source.clip = null;
+        }
+    }
+
+    public void SetSFXVolume(float newVolume)
+    {
+        sfxVolume = Mathf.Clamp01(newVolume);
+        // Update volume for all currently playing SFX
+        foreach (var source in sfxPool)
+        {
+            if (source.isPlaying && !source.loop)
+            {
+                // For one-shot clips, we can't change volume mid-play
+                // For looping clips, we can
+                if (source.loop)
+                    source.volume = sfxVolume;
+            }
+        }
+    }
+
+    public void SetVoiceVolume(float newVolume)
+    {
+        voiceVolume = Mathf.Clamp01(newVolume);
+        // Update volume for all currently playing voice lines
+        foreach (var source in voicePool)
+        {
+            if (source.isPlaying && source.loop)
+                source.volume = voiceVolume * voiceVolumeMultiplier;
+        }
+    }
 
     public void StopAllSFX()
     {
         foreach (var source in sfxPool) if (source.isPlaying) source.Stop();
-        if (voiceSource.isPlaying) voiceSource.Stop();
+        StopAllVoiceLines();
     }
 
     public bool HasVoiceLine(string key) => !string.IsNullOrEmpty(key) && voiceDict.ContainsKey(key.ToLowerInvariant());
     public List<string> GetAvailableVoiceKeys() => voiceDict.Keys.ToList();
+
+    /// <summary>
+    /// Get the number of currently playing SFX
+    /// </summary>
+    public int GetPlayingSFXCount() => sfxPool.Count(s => s.isPlaying);
+
+    /// <summary>
+    /// Get the number of currently playing voice lines
+    /// </summary>
+    public int GetPlayingVoiceCount() => voicePool.Count(v => v.isPlaying);
 
     // ==================== 🔊 SFX INTERNAL METHODS ====================
 
@@ -280,23 +423,85 @@ public class BackgroundMusicManager : MonoBehaviour
     {
         if (clip == null) return;
         var source = GetAvailableSFXSource();
-        if (source != null) source.PlayOneShot(clip, Mathf.Clamp01(volume));
+        if (source != null)
+            source.PlayOneShot(clip, Mathf.Clamp01(volume));
     }
 
-    // 🔊 UPDATED: 3x louder voice playback
     private void PlayOneShotVoice(AudioClip clip, float volume)
     {
         if (clip == null) return;
-        if (voiceSource.isPlaying) voiceSource.Stop();
-        // 🔊 Multiplier applied (default 3.0x). Unity allows >1.0 but may clip if too high.
-        voiceSource.PlayOneShot(clip, volume * voiceVolumeMultiplier);
+        var source = GetAvailableVoiceSource();
+        if (source != null)
+        {
+            source.PlayOneShot(clip, volume * voiceVolumeMultiplier);
+        }
+    }
+
+    private AudioSource PlayOneShotVoiceWithReference(AudioClip clip, float volume)
+    {
+        if (clip == null) return null;
+        var source = GetAvailableVoiceSource();
+        if (source != null)
+        {
+            source.PlayOneShot(clip, volume * voiceVolumeMultiplier);
+            return source;
+        }
+        return null;
     }
 
     private AudioSource GetAvailableSFXSource()
     {
-        foreach (var source in sfxPool) if (!source.isPlaying) return source;
-        Debug.LogWarning("⚠️ SFX pool full - reusing source (may cut off sound)");
+        // First try to find an inactive source
+        foreach (var source in sfxPool)
+            if (!source.isPlaying) return source;
+
+        // If all are busy, find the oldest playing source (lowest time)
+        AudioSource oldest = sfxPool.OrderBy(s => s.time).FirstOrDefault();
+        if (oldest != null)
+        {
+            Debug.LogWarning("⚠️ SFX pool full - reusing oldest source (may cut off sound)");
+            oldest.Stop();
+            return oldest;
+        }
+
         return sfxPool[0];
+    }
+
+    private AudioSource GetAvailableVoiceSource()
+    {
+        // First try to find an inactive source
+        foreach (var source in voicePool)
+            if (!source.isPlaying) return source;
+
+        // If all are busy, find the oldest playing voice
+        AudioSource oldest = voicePool.OrderBy(v => v.time).FirstOrDefault();
+        if (oldest != null)
+        {
+            Debug.LogWarning("⚠️ Voice pool full - reusing oldest source (may cut off voice)");
+            oldest.Stop();
+            return oldest;
+        }
+
+        return voicePool[0];
+    }
+
+    private IEnumerator ClearClipAfterPlayback(AudioSource source)
+    {
+        if (source != null && source.clip != null)
+        {
+            yield return new WaitForSeconds(source.clip.length);
+            if (source != null && !source.loop)
+                source.clip = null;
+        }
+    }
+
+    private IEnumerator PlayVoiceSequenceCoroutine(List<string> keys, float delayBetween)
+    {
+        foreach (string key in keys)
+        {
+            PlayVoiceLine(key);
+            yield return new WaitForSeconds(delayBetween);
+        }
     }
 
     private IEnumerator ResetPositionAfterPlayback(AudioSource source, Vector3 originalPos)
@@ -478,9 +683,11 @@ public class BackgroundMusicManager : MonoBehaviour
     [ContextMenu("Show SFX Pool Status")]
     private void ShowSFXPoolStatus()
     {
-        int playing = 0;
-        foreach (var s in sfxPool) if (s.isPlaying) playing++;
-        Debug.Log($"🔊 SFX Pool: {playing}/{sfxPool.Count} playing | Voice: {(voiceSource.isPlaying ? "Yes" : "No")}");
+        int playingSFX = 0;
+        foreach (var s in sfxPool) if (s.isPlaying) playingSFX++;
+        int playingVoice = 0;
+        foreach (var v in voicePool) if (v.isPlaying) playingVoice++;
+        Debug.Log($"🔊 SFX Pool: {playingSFX}/{sfxPool.Count} playing | Voice Pool: {playingVoice}/{voicePool.Count} playing");
     }
 
     [ContextMenu("Test Random Mode")]

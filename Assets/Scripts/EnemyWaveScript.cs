@@ -18,7 +18,11 @@ public class EnemyWaveScript : MonoBehaviour
     [SerializeField, Tooltip("List of monsters with spawn weights. Chances are relative (don't need to sum to 100).")]
     private List<MonsterSpawnData> monsterPool = new List<MonsterSpawnData>();
 
-    // ==================== WAVE CONFIGURATION ====================
+    // ==================== SPAWN POINTS ====================
+    [Header("📍 Spawn Points")]
+    [SerializeField, Tooltip("List of GameObjects that serve as spawn points. Enemies will spawn randomly around these points.")]
+    private List<GameObject> spawnPoints = new List<GameObject>();
+
     [Header("🌊 Fibonacci Wave Settings")]
     [SerializeField, Tooltip("Enemy count for Wave 1 (F₁)")]
     private int fibWave1Count = 3;
@@ -29,6 +33,18 @@ public class EnemyWaveScript : MonoBehaviour
     [Header("⚙️ Spawn Settings")]
     public float spawnRange = 20f;
     public float minRange = 5f;
+    [SerializeField, Tooltip("Random range in units around each spawn point (default: 5)")]
+    private float spawnPointRadius = 5f;
+
+    [Header("🔄 Incremental Spawn Settings")]
+    [SerializeField, Tooltip("Minimum number of enemies to spawn at once")]
+    private int minSpawnBatchSize = 3;
+    [SerializeField, Tooltip("Maximum number of enemies to spawn at once")]
+    private int maxSpawnBatchSize = 5;
+    [SerializeField, Tooltip("Delay in seconds between spawning batches")]
+    private float spawnBatchDelay = 1f;
+    [SerializeField, Tooltip("Delay in seconds between spawning individual enemies within a batch")]
+    private float spawnIndividualDelay = 0.5f;
 
     [Header("🔗 References")]
     public Transform playerTransform;
@@ -44,6 +60,14 @@ public class EnemyWaveScript : MonoBehaviour
     private int currentWaveEnemyCount = 0;
     public int enemiesKilled = 0;         // Made public for external access if needed
 
+    private int enemiesRemainingToSpawn = 0;
+    private int enemiesSpawnedSoFar = 0;
+    private bool isSpawningWave = false;
+    private Coroutine spawnCoroutine = null;
+
+    private List<GameObject> pendingEnemiesToSpawn = new List<GameObject>(); // Pre-selected enemies for the wave
+    private int currentPendingIndex = 0;
+
     // ==================== UNITY MESSAGES ====================
     void Start()
     {
@@ -54,7 +78,10 @@ public class EnemyWaveScript : MonoBehaviour
         // Calculate enemy count for Wave 1
         CalculateWaveEnemyCount();
 
-        SpawnWave();
+        // Validate spawn points
+        ValidateSpawnPoints();
+
+        StartWaveSpawning();
         UpdateUI();
 
         // Optional: Validate monster pool on start
@@ -63,8 +90,8 @@ public class EnemyWaveScript : MonoBehaviour
 
     void Update()
     {
-        // Check if current wave is cleared
-        if (aliveEnemies.Count == 0 && enemiesKilled >= currentWaveEnemyCount && currentWaveEnemyCount > 0)
+        // Check if current wave is cleared (no enemies alive AND no enemies waiting to spawn)
+        if (!isSpawningWave && aliveEnemies.Count == 0 && enemiesRemainingToSpawn == 0 && enemiesKilled >= currentWaveEnemyCount && currentWaveEnemyCount > 0)
         {
             OnWaveCleared();
         }
@@ -78,12 +105,17 @@ public class EnemyWaveScript : MonoBehaviour
 
         CalculateWaveEnemyCount();
         UpdateUI();
-        SpawnWave();
+        StartWaveSpawning();
     }
 
     private void OnWaveCleared()
     {
         enemiesKilled = 0;
+        enemiesSpawnedSoFar = 0;
+        enemiesRemainingToSpawn = 0;
+        currentPendingIndex = 0;
+        pendingEnemiesToSpawn.Clear();
+
         Debug.Log($"✅ Wave {currentWave + 1} cleared! Next: {GetNextFibonacciCount()} enemies");
         waveOverScreen.SetActive(true);
     }
@@ -106,6 +138,8 @@ public class EnemyWaveScript : MonoBehaviour
             fibCurr = nextFib;
             currentWaveEnemyCount = nextFib;
         }
+
+        enemiesRemainingToSpawn = currentWaveEnemyCount;
     }
 
     private int GetNextFibonacciCount()
@@ -116,10 +150,74 @@ public class EnemyWaveScript : MonoBehaviour
         return fibPrev + fibCurr;
     }
 
-    // ==================== SPAWN SYSTEM ====================
-    private void SpawnWave()
+    // ==================== INCREMENTAL SPAWN SYSTEM ====================
+    private void StartWaveSpawning()
     {
+        if (spawnCoroutine != null)
+            StopCoroutine(spawnCoroutine);
+
+        spawnCoroutine = StartCoroutine(SpawnWaveIncrementally());
+    }
+
+    private IEnumerator SpawnWaveIncrementally()
+    {
+        isSpawningWave = true;
+
+        // Clear existing enemies and lists
         aliveEnemies.Clear();
+        enemiesSpawnedSoFar = 0;
+        currentPendingIndex = 0;
+
+        // Pre-select all enemies for this wave (to maintain weighted distribution)
+        BuildWaveEnemyList();
+
+        if (pendingEnemiesToSpawn.Count == 0)
+        {
+            Debug.LogWarning("⚠️ No enemies to spawn!");
+            isSpawningWave = false;
+            yield break;
+        }
+
+        Debug.Log($"🌊 Wave {currentWave + 1}: Starting incremental spawn. Total enemies: {currentWaveEnemyCount}");
+
+        // Spawn in batches
+        while (currentPendingIndex < pendingEnemiesToSpawn.Count)
+        {
+            // Determine batch size (3-5, but not exceeding remaining enemies)
+            int batchSize = Random.Range(minSpawnBatchSize, maxSpawnBatchSize + 1);
+            batchSize = Mathf.Min(batchSize, pendingEnemiesToSpawn.Count - currentPendingIndex);
+
+            Debug.Log($"📦 Spawning batch of {batchSize} enemies ({currentPendingIndex + 1}-{currentPendingIndex + batchSize} of {pendingEnemiesToSpawn.Count})");
+
+            // Spawn each enemy in the batch with individual delays
+            for (int i = 0; i < batchSize; i++)
+            {
+                if (currentPendingIndex >= pendingEnemiesToSpawn.Count)
+                    break;
+
+                // Spawn the next enemy
+                SpawnSingleEnemy(pendingEnemiesToSpawn[currentPendingIndex]);
+                currentPendingIndex++;
+                enemiesRemainingToSpawn--;
+                enemiesSpawnedSoFar++;
+
+                // Wait between individual enemy spawns
+                if (i < batchSize - 1 && spawnIndividualDelay > 0)
+                    yield return new WaitForSeconds(spawnIndividualDelay);
+            }
+
+            // Wait before spawning the next batch (if there are more enemies)
+            if (currentPendingIndex < pendingEnemiesToSpawn.Count && spawnBatchDelay > 0)
+                yield return new WaitForSeconds(spawnBatchDelay);
+        }
+
+        isSpawningWave = false;
+        Debug.Log($"✅ Wave {currentWave + 1}: All {enemiesSpawnedSoFar} enemies have been queued for spawning!");
+    }
+
+    private void BuildWaveEnemyList()
+    {
+        pendingEnemiesToSpawn.Clear();
 
         if (monsterPool == null || monsterPool.Count == 0)
         {
@@ -130,31 +228,152 @@ public class EnemyWaveScript : MonoBehaviour
         // Build cumulative distribution for weighted random selection
         var cumulativeChances = BuildCumulativeChances(out float totalChance);
 
-        // Spawn enemies based on Fibonacci count
+        // Pre-select all enemies for the wave
         for (int i = 0; i < currentWaveEnemyCount; i++)
         {
             GameObject selected = SelectMonsterByWeight(cumulativeChances, totalChance);
-
             if (selected != null)
             {
-                Vector3 spawnPos = FindValidSpawnLocation();
-                GameObject spawned = Instantiate(selected, spawnPos, Quaternion.identity);
-                spawned.name = selected.name;
-
-                // Inject dependencies
-                var enemyCtrl = spawned.GetComponent<EnemyController>();
-                if (enemyCtrl != null)
-                {
-                    enemyCtrl.playerTransform = playerTransform;
-                    enemyCtrl.EnemyWaveController = this;
-                }
-
-                aliveEnemies.Add(spawned);
+                pendingEnemiesToSpawn.Add(selected);
             }
         }
 
+        Debug.Log($"📋 Built wave enemy list with {pendingEnemiesToSpawn.Count} enemies");
+    }
+
+    private void SpawnSingleEnemy(GameObject enemyPrefab)
+    {
+        if (enemyPrefab == null)
+            return;
+
+        Vector3 spawnPos = FindValidSpawnLocationAroundSpawnPoint();
+        GameObject spawned = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+        spawned.name = enemyPrefab.name;
+
+        // Inject dependencies
+        var enemyCtrl = spawned.GetComponent<EnemyController>();
+        if (enemyCtrl != null)
+        {
+            enemyCtrl.playerTransform = playerTransform;
+            enemyCtrl.EnemyWaveController = this;
+        }
+
+        aliveEnemies.Add(spawned);
         UpdateUI();
-        Debug.Log($"🌊 Wave {currentWave + 1}: Spawned {currentWaveEnemyCount} enemies");
+
+        Debug.Log($"✨ Spawned {enemyPrefab.name} at {spawnPos} ({aliveEnemies.Count} alive, {pendingEnemiesToSpawn.Count - currentPendingIndex} remaining to spawn)");
+    }
+
+    // Optional: Method to manually trigger next batch (if you want button control instead of automatic)
+    public void SpawnNextBatch()
+    {
+        if (isSpawningWave)
+        {
+            Debug.Log("Wave is already spawning automatically!");
+            return;
+        }
+
+        if (currentPendingIndex >= pendingEnemiesToSpawn.Count)
+        {
+            Debug.Log("No more enemies to spawn!");
+            return;
+        }
+
+        if (spawnCoroutine != null)
+            StopCoroutine(spawnCoroutine);
+
+        spawnCoroutine = StartCoroutine(SpawnNextBatchManually());
+    }
+
+    private IEnumerator SpawnNextBatchManually()
+    {
+        int batchSize = Random.Range(minSpawnBatchSize, maxSpawnBatchSize + 1);
+        batchSize = Mathf.Min(batchSize, pendingEnemiesToSpawn.Count - currentPendingIndex);
+
+        for (int i = 0; i < batchSize; i++)
+        {
+            if (currentPendingIndex >= pendingEnemiesToSpawn.Count)
+                break;
+
+            SpawnSingleEnemy(pendingEnemiesToSpawn[currentPendingIndex]);
+            currentPendingIndex++;
+            enemiesRemainingToSpawn--;
+            enemiesSpawnedSoFar++;
+
+            if (i < batchSize - 1 && spawnIndividualDelay > 0)
+                yield return new WaitForSeconds(spawnIndividualDelay);
+        }
+
+        UpdateUI();
+    }
+
+    // ==================== SPAWN POINT HELPERS ====================
+    private GameObject GetRandomSpawnPoint()
+    {
+        if (spawnPoints == null || spawnPoints.Count == 0)
+            return null;
+
+        // Filter out null references
+        List<GameObject> validPoints = new List<GameObject>();
+        foreach (var point in spawnPoints)
+        {
+            if (point != null)
+                validPoints.Add(point);
+        }
+
+        if (validPoints.Count == 0)
+            return null;
+
+        return validPoints[Random.Range(0, validPoints.Count)];
+    }
+
+    private Vector3 FindValidSpawnLocationAroundSpawnPoint()
+    {
+        return FindSpawnLocAroundPointWithRetries(0);
+    }
+
+    private Vector3 FindSpawnLocAroundPointWithRetries(int attempts)
+    {
+        const int MAX_ATTEMPTS = 25;
+
+        if (attempts >= MAX_ATTEMPTS)
+        {
+            Debug.LogWarning($"⚠️ Could not find valid spawn location after {MAX_ATTEMPTS} attempts");
+            // Return a position around the first spawn point as fallback
+            if (spawnPoints.Count > 0 && spawnPoints[0] != null)
+            {
+                return spawnPoints[0].transform.position + new Vector3(
+                    Random.Range(-spawnPointRadius, spawnPointRadius),
+                    0,
+                    Random.Range(-spawnPointRadius, spawnPointRadius)
+                );
+            }
+            return transform.position;
+        }
+
+        // Select a random spawn point from the list
+        GameObject selectedSpawnPoint = GetRandomSpawnPoint();
+
+        if (selectedSpawnPoint == null)
+        {
+            return FindSpawnLocWithRetries(attempts + 1);
+        }
+
+        // Generate random position within radius around spawn point
+        Vector2 randomCircle = Random.insideUnitCircle * spawnPointRadius;
+        Vector3 candidate = new Vector3(
+            selectedSpawnPoint.transform.position.x + randomCircle.x,
+            selectedSpawnPoint.transform.position.y,
+            selectedSpawnPoint.transform.position.z + randomCircle.y
+        );
+
+        // Optional: Ground check and distance validation
+        if (Physics.Raycast(candidate, Vector3.down, 5f))
+        {
+            return candidate;
+        }
+
+        return FindSpawnLocAroundPointWithRetries(attempts + 1);
     }
 
     private List<float> BuildCumulativeChances(out float totalChance)
@@ -189,7 +408,7 @@ public class EnemyWaveScript : MonoBehaviour
         return monsterPool[monsterPool.Count - 1].monsterPrefab;
     }
 
-    // ==================== SPAWN LOCATION ====================
+    // ==================== SPAWN LOCATION (LEGACY/FALLBACK) ====================
     private Vector3 FindValidSpawnLocation()
     {
         return FindSpawnLocWithRetries(0);
@@ -235,7 +454,7 @@ public class EnemyWaveScript : MonoBehaviour
         UpdateUI();
 
 #if UNITY_EDITOR
-        Debug.Log($"[WaveScript] Killed: {enemiesKilled}/{currentWaveEnemyCount} | Alive: {aliveEnemies.Count}");
+        Debug.Log($"[WaveScript] Killed: {enemiesKilled}/{currentWaveEnemyCount} | Alive: {aliveEnemies.Count} | Remaining to spawn: {pendingEnemiesToSpawn.Count - currentPendingIndex}");
 #endif
     }
 
@@ -244,7 +463,8 @@ public class EnemyWaveScript : MonoBehaviour
     {
         if (killAndWaveCounter != null)
         {
-            killAndWaveCounter.text = $"Kills: {enemiesKilled}/{currentWaveEnemyCount}\nWave: {currentWave + 1}";
+            int totalRemaining = (pendingEnemiesToSpawn.Count - currentPendingIndex) + aliveEnemies.Count;
+            killAndWaveCounter.text = $"Kills: {enemiesKilled}/{currentWaveEnemyCount}\nWave: {currentWave + 1}\nRemaining: {totalRemaining}";
         }
     }
 
@@ -268,6 +488,29 @@ public class EnemyWaveScript : MonoBehaviour
             Debug.LogWarning("⚠️ Total spawn chance is 0! No monsters will spawn.");
         else if (total != 100f)
             Debug.Log($"ℹ️ Spawn chances sum to {total} (relative weights work fine - no need to equal 100)");
+    }
+
+    private void ValidateSpawnPoints()
+    {
+        if (spawnPoints == null || spawnPoints.Count == 0)
+        {
+            Debug.LogWarning("⚠️ No spawn points assigned! Enemies will spawn using fallback method around the wave controller.");
+            return;
+        }
+
+        int validCount = 0;
+        foreach (var point in spawnPoints)
+        {
+            if (point != null)
+                validCount++;
+            else
+                Debug.LogWarning("⚠️ Spawn point entry is null!");
+        }
+
+        if (validCount == 0)
+            Debug.LogError("❌ All spawn points are null! Please assign valid GameObjects.");
+        else
+            Debug.Log($"✅ Found {validCount} valid spawn points");
     }
 
     // Optional: Call this from editor or debug menu to test spawn weights
@@ -295,6 +538,20 @@ public class EnemyWaveScript : MonoBehaviour
         foreach (var kvp in counts)
         {
             Debug.Log($"  {kvp.Key}: {kvp.Value} ({kvp.Value * 100f / samples:F1}%)");
+        }
+    }
+
+    [ContextMenu("Debug Spawn Points")]
+    private void DebugSpawnPoints()
+    {
+        Debug.Log($"=== Spawn Points Debug ===");
+        Debug.Log($"Total spawn points in list: {spawnPoints.Count}");
+        for (int i = 0; i < spawnPoints.Count; i++)
+        {
+            if (spawnPoints[i] != null)
+                Debug.Log($"  Point {i}: {spawnPoints[i].name} at {spawnPoints[i].transform.position}");
+            else
+                Debug.Log($"  Point {i}: NULL");
         }
     }
 #endif
