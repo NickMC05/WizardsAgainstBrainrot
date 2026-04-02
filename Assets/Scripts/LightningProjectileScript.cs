@@ -65,7 +65,7 @@ public class LightningProjectileScript : MonoBehaviour
 
         if (!directionSet)
         {
-            launchDirection = -transform.up;
+            launchDirection = transform.forward;
         }
 
         transform.position += launchDirection * spawnForwardOffset;

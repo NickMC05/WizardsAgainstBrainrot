@@ -31,8 +31,8 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0.001, y: 1.67366, z: -0.42156}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
+  m_LocalScale: {x: 0.67, y: 0.67, z: 0.67}
+  m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
@@ -159,5 +159,8 @@ MonoBehaviour:
   directDamage: 40
   explosionRadius: 0.6
   explosionDamage: 20
+  bounceRange: 8
+  showBounceArc: 1
+  allowSingleBounce: 1
   explosionScaleMultiplier: 2.5
   explosionDuration: 0.3
