@@ -1572,6 +1572,9 @@ MonoBehaviour:
   pentagonRadius: 0.2
   nodeSize: 0.1
   angleOffset: 0
+  colliderDepth: 0.2
+  showColliderVisuals: 1
+  touchParticleColor: {r: 1, g: 0.85318327, b: 0.2980392, a: 1}
   pentagonSprite: {fileID: 21300000, guid: baaa0fe2565431e45a37e591be399c18, type: 3}
   imageSize: 0.6
   imageDepthOffset: 0.005
@@ -3420,6 +3423,7 @@ MonoBehaviour:
   tutorialMobPrefab: {fileID: 4195812595116482479, guid: 2fe46a39e52fb4bad98dcb0b5d3e1ad0, type: 3}
   tutorialMobSpawnPoint: {fileID: 847452309}
   tutorialSpawnOffset: {x: 0, y: 0, z: 3}
+  tutorialUIPanel: {fileID: 0}
   aliveEnemies: []
   enemiesKilled: 0
 --- !u!4 &1984762589
