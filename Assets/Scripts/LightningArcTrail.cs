@@ -1,115 +1,183 @@
-using System.Collections;
 using UnityEngine;
+using System.Collections;
 
 public class LightningArcTrail : MonoBehaviour
 {
-[Header("Shape")]
-[SerializeField] private int segments = 12;
-[SerializeField] private float jitter = 0.25f;
-[SerializeField] private float refreshInterval = 0.02f;
+    [Header("Arc Shape")]
+    [SerializeField] private int segments = 12;
+    [SerializeField] private float jaggedness = 0.35f;
 
-[Header("Look")]
-[SerializeField] private float width = 0.08f;
-[SerializeField] private Color coreColor = new Color(0.7f, 0.9f, 1f, 1f);
-[SerializeField] private Color endColor = new Color(0.7f, 0.9f, 1f, 0f);
+    [Header("Core Line")]
+    [SerializeField] private float coreWidth = 0.06f;
 
-[Header("Lifetime")]
-[SerializeField] private float life = 0.12f;
+    [Header("Glow Line")]
+    [SerializeField] private float glowWidth = 0.28f;
 
-private LineRenderer lr;
-private Vector3 startPoint;
-private Vector3 endPoint;
+    [Header("Color")]
+    [SerializeField] private Color coreColor = new Color(1f, 1f, 0.85f, 1f);       // near-white hot center
+    [SerializeField] private Color glowColor = new Color(1f, 0.95f, 0.1f, 0.45f);  // electric yellow glow
+    [SerializeField] private float emissionIntensity = 4f;
 
-public static void Spawn(Vector3 from, Vector3 to, Transform parent = null)
-{
-GameObject go = new GameObject("LightningArc");
-if (parent != null) go.transform.SetParent(parent, true);
+    [Header("Lifetime")]
+    [SerializeField] private float duration = 0.25f;
+    [SerializeField] private float flickerInterval = 0.04f;
 
-LightningArcTrail arc = go.AddComponent<LightningArcTrail>();
-arc.Initialize(from, to);
-}
+    private LineRenderer coreLine;
+    private LineRenderer glowLine;
 
-private void Initialize(Vector3 from, Vector3 to)
-{
-startPoint = from;
-endPoint = to;
+    public static void Spawn(Vector3 start, Vector3 end)
+    {
+        GameObject go = new GameObject("LightningArc");
+        go.transform.position = start;
+        LightningArcTrail arc = go.AddComponent<LightningArcTrail>();
+        arc.Init(start, end);
+    }
 
-lr = gameObject.AddComponent<LineRenderer>();
-lr.useWorldSpace = true;
-lr.positionCount = Mathf.Max(2, segments);
-lr.startWidth = width;
-lr.endWidth = width * 0.4f;
-lr.numCornerVertices = 2;
-lr.numCapVertices = 2;
-lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-lr.receiveShadows = false;
+    private void Init(Vector3 start, Vector3 end)
+    {
+        // --- Build materials ---
+        Material coreMat = CreateArcMaterial(coreColor, emissionIntensity);
+        Material glowMat = CreateArcMaterial(glowColor, emissionIntensity * 0.6f);
 
-Gradient g = new Gradient();
-g.SetKeys(
-new GradientColorKey[] {
-new GradientColorKey(coreColor, 0f),
-new GradientColorKey(coreColor, 0.7f),
-new GradientColorKey(endColor, 1f)
-},
-new GradientAlphaKey[] {
-new GradientAlphaKey(1f, 0f),
-new GradientAlphaKey(0.8f, 0.6f),
-new GradientAlphaKey(0f, 1f)
-}
-);
-lr.colorGradient = g;
+        // --- Glow (behind) ---
+        GameObject glowObj = new GameObject("Glow");
+        glowObj.transform.SetParent(transform);
+        glowLine = glowObj.AddComponent<LineRenderer>();
+        SetupLine(glowLine, glowMat, glowWidth, -1);
 
-Shader shader = Shader.Find("Sprites/Default");
-if (shader == null) shader = Shader.Find("Unlit/Color");
-Material mat = new Material(shader);
-mat.color = Color.white;
-lr.material = mat;
+        // --- Core (front) ---
+        GameObject coreObj = new GameObject("Core");
+        coreObj.transform.SetParent(transform);
+        coreLine = coreObj.AddComponent<LineRenderer>();
+        SetupLine(coreLine, coreMat, coreWidth, 0);
 
-StartCoroutine(AnimateArc());
-}
+        // Generate initial arc
+        Vector3[] points = GenerateArcPoints(start, end);
+        ApplyPoints(points);
 
-private IEnumerator AnimateArc()
-{
-float elapsed = 0f;
-while (elapsed < life)
-{
-DrawJaggedArc(startPoint, endPoint);
-elapsed += refreshInterval;
-yield return new WaitForSeconds(refreshInterval);
-}
+        StartCoroutine(FlickerAndDie(start, end));
+    }
 
-Destroy(gameObject);
-}
+    private Material CreateArcMaterial(Color baseColor, float intensity)
+    {
+        // Use the built-in particle additive shader for nice glow blending
+        Shader shader = Shader.Find("Particles/Standard Unlit");
+        if (shader == null)
+            shader = Shader.Find("Legacy Shaders/Particles/Additive");
+        if (shader == null)
+            shader = Shader.Find("Sprites/Default");
 
-private void DrawJaggedArc(Vector3 from, Vector3 to)
-{
-int count = Mathf.Max(2, segments);
-lr.positionCount = count;
+        Material mat = new Material(shader);
 
-Vector3 dir = (to - from);
-float distance = dir.magnitude;
-Vector3 forward = distance > 0.001f ? dir.normalized : Vector3.forward;
+        // Try to set to additive blending
+        mat.SetFloat("_Mode", 0); // additive if particles shader
+        mat.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+        mat.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.One);
+        mat.SetInt("_ZWrite", 0);
+        mat.DisableKeyword("_ALPHATEST_ON");
+        mat.EnableKeyword("_ALPHABLEND_ON");
+        mat.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+        mat.renderQueue = 3100;
 
-Vector3 side = Vector3.Cross(forward, Vector3.up);
-if (side.sqrMagnitude < 0.001f) side = Vector3.Cross(forward, Vector3.right);
-side.Normalize();
+        // HDR emission color for bloom
+        Color hdrColor = baseColor * intensity;
+        mat.SetColor("_Color", hdrColor);
+        mat.SetColor("_EmissionColor", hdrColor);
+        mat.EnableKeyword("_EMISSION");
 
-Vector3 up = Vector3.Cross(forward, side).normalized;
+        // Also set main color for fallback shaders
+        if (mat.HasProperty("_TintColor"))
+            mat.SetColor("_TintColor", hdrColor);
 
-for (int i = 0; i < count; i++)
-{
-float t = i / (float)(count - 1);
-Vector3 p = Vector3.Lerp(from, to, t);
+        return mat;
+    }
 
-if (i != 0 && i != count - 1)
-{
-float envelope = 1f - Mathf.Abs(0.5f - t) * 2f;
-float x = Random.Range(-jitter, jitter) * envelope;
-float y = Random.Range(-jitter, jitter) * envelope;
-p += side * x + up * y;
-}
+    private void SetupLine(LineRenderer lr, Material mat, float width, int sortOrder)
+    {
+        lr.material = mat;
+        lr.startWidth = width;
+        lr.endWidth = width;
+        lr.numCapVertices = 4;
+        lr.numCornerVertices = 4;
+        lr.useWorldSpace = true;
+        lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        lr.receiveShadows = false;
+        lr.sortingOrder = sortOrder;
 
-lr.SetPosition(i, p);
-}
-}
+        // Width curve: thicker in center, thinner at ends
+        AnimationCurve widthCurve = new AnimationCurve(
+            new Keyframe(0f, 0.4f),
+            new Keyframe(0.2f, 1f),
+            new Keyframe(0.8f, 1f),
+            new Keyframe(1f, 0.4f)
+        );
+        lr.widthCurve = widthCurve;
+        lr.widthMultiplier = width;
+    }
+
+    private Vector3[] GenerateArcPoints(Vector3 start, Vector3 end)
+    {
+        Vector3[] points = new Vector3[segments + 1];
+        points[0] = start;
+        points[segments] = end;
+
+        Vector3 forward = end - start;
+        float length = forward.magnitude;
+        Vector3 dir = forward / length;
+
+        // Build a perpendicular basis
+        Vector3 up = Vector3.Cross(dir, Vector3.right);
+        if (up.sqrMagnitude < 0.01f)
+            up = Vector3.Cross(dir, Vector3.up);
+        up.Normalize();
+        Vector3 right = Vector3.Cross(dir, up).normalized;
+
+        for (int i = 1; i < segments; i++)
+        {
+            float t = (float)i / segments;
+            Vector3 basePos = Vector3.Lerp(start, end, t);
+
+            // Offset fades near endpoints so the arc connects cleanly
+            float envelope = Mathf.Sin(t * Mathf.PI);
+            float offsetX = Random.Range(-jaggedness, jaggedness) * envelope * length * 0.15f;
+            float offsetY = Random.Range(-jaggedness, jaggedness) * envelope * length * 0.15f;
+
+            points[i] = basePos + right * offsetX + up * offsetY;
+        }
+
+        return points;
+    }
+
+    private void ApplyPoints(Vector3[] points)
+    {
+        coreLine.positionCount = points.Length;
+        coreLine.SetPositions(points);
+
+        glowLine.positionCount = points.Length;
+        glowLine.SetPositions(points);
+    }
+
+    private IEnumerator FlickerAndDie(Vector3 start, Vector3 end)
+    {
+        float elapsed = 0f;
+
+        while (elapsed < duration)
+        {
+            yield return new WaitForSeconds(flickerInterval);
+            elapsed += flickerInterval;
+
+            // Re-randomize the arc each flicker for electric feel
+            Vector3[] points = GenerateArcPoints(start, end);
+            ApplyPoints(points);
+
+            // Fade out in the last 40% of life
+            float fadeT = Mathf.Clamp01((elapsed - duration * 0.6f) / (duration * 0.4f));
+            float alpha = 1f - fadeT;
+
+            coreLine.widthMultiplier = coreWidth * alpha;
+            glowLine.widthMultiplier = glowWidth * alpha;
+        }
+
+        Destroy(gameObject);
+    }
 }

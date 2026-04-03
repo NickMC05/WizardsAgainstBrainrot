@@ -6,52 +6,27 @@ using UnityEngine;
 [RequireComponent(typeof(SphereCollider))]
 public class LightningProjectileScript : MonoBehaviour
 {
-    [Header("Movement")]
-    [SerializeField] private float speed = 12f;
-    [SerializeField] private float lifetime = 8f;
-    [SerializeField] private float spawnGracePeriod = 0.15f;
-    [SerializeField] private float spawnForwardOffset = 0.3f;
+    [Header("Appearance")]
+    [SerializeField] private float projectileScale = 0.15f;
+
+    [Header("Range")]
+    [SerializeField] private float initialRange = 15f;
+    [SerializeField] private float bounceRange = 8f;
 
     [Header("Damage")]
     [SerializeField] private float directDamage = 40f;
-    [SerializeField] private float explosionRadius = 0.6f;
-    [SerializeField] private float explosionDamage = 20f;
+    [SerializeField] private float bounceDamage = 20f;
 
     [Header("Bounce")]
-    [SerializeField] private float bounceRange = 8f;
+    [SerializeField] private int maxBounces = 1;
+    [SerializeField] private float bounceDelay = 0.08f;
 
-    [Header("Bounce FX")]
-    [SerializeField] private bool showBounceArc = true;
-    [SerializeField] private bool allowSingleBounce = true;
-
-    [Header("Explosion Visual")]
-    [SerializeField] private float explosionScaleMultiplier = 2.5f;
-    [SerializeField] private float explosionDuration = 0.3f;
+    [Header("Lifetime")]
+    [SerializeField] private float lifetime = 1.5f;
 
     private Rigidbody rb;
-    private SphereCollider col;
-    private FireballTrail trail;
-    private bool hasExploded;
-    private float spawnTime;
-
     private Vector3 launchDirection;
     private bool directionSet = false;
-
-    private bool hasBounced;
-
-    void Awake()
-    {
-        rb = GetComponent<Rigidbody>();
-        rb.useGravity = false;
-        rb.isKinematic = false;
-        rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rb.interpolation = RigidbodyInterpolation.Interpolate;
-
-        col = GetComponent<SphereCollider>();
-        col.isTrigger = false;
-
-        trail = GetComponent<FireballTrail>();
-    }
 
     public void SetDirection(Vector3 direction)
     {
@@ -59,179 +34,174 @@ public class LightningProjectileScript : MonoBehaviour
         directionSet = true;
     }
 
+    void Awake()
+    {
+        rb = GetComponent<Rigidbody>();
+        rb.useGravity = false;
+        rb.isKinematic = true;
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+
+        SphereCollider col = GetComponent<SphereCollider>();
+        col.enabled = false;
+
+        FireballTrail trail = GetComponent<FireballTrail>();
+        if (trail != null) trail.DetachAndFade();
+    }
+
     void Start()
     {
-        spawnTime = Time.time;
-
         if (!directionSet)
-        {
             launchDirection = transform.forward;
-        }
 
-        transform.position += launchDirection * spawnForwardOffset;
-        rb.linearVelocity = launchDirection * speed;
+        // Stay exactly where we were spawned (the wand tip)
+        rb.linearVelocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
 
-        Debug.Log("Fireball launched direction: " + launchDirection);
+        transform.localScale *= projectileScale;
+
+        StartCoroutine(ChainLightning());
         Destroy(gameObject, lifetime);
     }
 
-    void OnCollisionEnter(Collision collision)
+    void FixedUpdate()
     {
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
-        audioMgr.PlaySpellExplodeSFX();
-
-        if (hasExploded) return;
-        if (Time.time - spawnTime < spawnGracePeriod) return;
-
-        string hitName = collision.gameObject.name;
-        EnemyController hitEnemy = collision.gameObject.GetComponent<EnemyController>();
-        bool isEnemyHit = hitEnemy != null;
-        bool hitGround = hitName == "Ground plane" || hitName.Contains("Ground");
-
-        Debug.Log("Fireball hit: " + hitName);
-
-        if (!hitGround && !isEnemyHit) return;
-
-        if (isEnemyHit)
-        {
-            hitEnemy.TakeDamage(directDamage);
-
-            if (allowSingleBounce && !hasBounced)
-            {
-                bool bounced = TryBounceToNearestEnemy(hitEnemy);
-                if (bounced) return;
-
-                Debug.Log("No valid bounce target in range. Despawning projectile.");
-                Destroy(gameObject);
-                return;
-            }
-
-            Explode();
-            return;
-        }
-
-        Explode();
-    }
-
-    private bool TryBounceToNearestEnemy(EnemyController currentEnemy)
-    {
-        if (currentEnemy == null) return false;
-
-        EnemyWaveScript wave = currentEnemy.EnemyWaveController;
-        if (wave == null) return false;
-
-        EnemyController nearest = FindNearestAliveEnemy(wave, currentEnemy);
-        if (nearest == null) return false;
-
-        Vector3 from = currentEnemy.transform.position;
-        Vector3 to = nearest.transform.position;
-        Vector3 dir = (to - from).normalized;
-
-        hasBounced = true;
-
-        if (showBounceArc)
-        {
-            LightningArcTrail.Spawn(from, to);
-        }
-
-        transform.position = from + dir * spawnForwardOffset;
-        transform.forward = dir;
-        rb.isKinematic = false;
-        col.enabled = true;
-        rb.linearVelocity = dir * speed;
-        spawnTime = Time.time;
-
-        Debug.Log("Bounced to: " + nearest.name);
-        return true;
-    }
-
-    private EnemyController FindNearestAliveEnemy(EnemyWaveScript wave, EnemyController currentEnemy)
-    {
-        if (wave == null || wave.aliveEnemies == null || wave.aliveEnemies.Count == 0) return null;
-
-        EnemyController nearest = null;
-        float bestSqr = bounceRange * bounceRange;
-        Vector3 origin = currentEnemy.transform.position;
-
-        for (int i = wave.aliveEnemies.Count - 1; i >= 0; i--)
-        {
-            GameObject go = wave.aliveEnemies[i];
-            if (go == null)
-            {
-                wave.aliveEnemies.RemoveAt(i);
-                continue;
-            }
-
-            EnemyController enemy = go.GetComponent<EnemyController>();
-            if (enemy == null) continue;
-            if (enemy == currentEnemy) continue;
-            if (!enemy.gameObject.activeInHierarchy) continue;
-            if (enemy.health <= 0f) continue;
-
-            float sqr = (enemy.transform.position - origin).sqrMagnitude;
-            if (sqr <= bestSqr)
-            {
-                bestSqr = sqr;
-                nearest = enemy;
-            }
-        }
-
-        return nearest;
-    }
-
-    private void Explode()
-    {
-        hasExploded = true;
-
+        // Force the projectile to never move
         rb.linearVelocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
-        rb.isKinematic = true;
-        col.enabled = false;
+    }
 
-        if (trail != null)
+    private IEnumerator ChainLightning()
+    {
+        Vector3 origin = transform.position;
+
+        EnemyController firstTarget = FindFirstTarget(origin, launchDirection, initialRange);
+
+        if (firstTarget == null)
         {
-            trail.DetachAndFade();
+            Debug.Log("Lightning: No target in range");
+            yield break;
         }
 
-        Collider[] hits = Physics.OverlapSphere(transform.position, explosionRadius);
-        HashSet<EnemyController> damaged = new HashSet<EnemyController>();
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+        if (audioMgr != null) audioMgr.PlaySpellExplodeSFX();
+
+        LightningArcTrail.Spawn(origin, firstTarget.transform.position);
+        firstTarget.TakeDamage(directDamage);
+        Debug.Log("Lightning hit: " + firstTarget.name);
+
+        EnemyController current = firstTarget;
+        HashSet<EnemyController> alreadyHit = new HashSet<EnemyController> { firstTarget };
+
+        for (int i = 0; i < maxBounces; i++)
+        {
+            yield return new WaitForSeconds(bounceDelay);
+
+            EnemyController next = FindNearestAliveEnemy(current, bounceRange, alreadyHit);
+            if (next == null)
+            {
+                Debug.Log("Lightning: No bounce target found");
+                break;
+            }
+
+            if (audioMgr != null) audioMgr.PlaySpellExplodeSFX();
+
+            LightningArcTrail.Spawn(current.transform.position, next.transform.position);
+            next.TakeDamage(bounceDamage);
+            Debug.Log("Lightning bounced to: " + next.name);
+
+            alreadyHit.Add(next);
+            current = next;
+        }
+    }
+
+    private EnemyController FindFirstTarget(Vector3 origin, Vector3 direction, float range)
+    {
+        Collider[] hits = Physics.OverlapSphere(origin, range);
+        EnemyController best = null;
+        float bestScore = float.MaxValue;
 
         foreach (Collider hit in hits)
         {
             EnemyController enemy = hit.GetComponent<EnemyController>();
-            if (enemy != null && !damaged.Contains(enemy))
+            if (enemy == null) continue;
+            if (!enemy.gameObject.activeInHierarchy) continue;
+            if (enemy.health <= 0f) continue;
+
+            Vector3 toEnemy = enemy.transform.position - origin;
+            float dist = toEnemy.magnitude;
+            if (dist < 0.01f) continue;
+
+            float dot = Vector3.Dot(direction, toEnemy.normalized);
+            if (dot < 0f) continue;
+
+            float score = dist * (1f - dot * 0.5f);
+            if (score < bestScore)
             {
-                damaged.Add(enemy);
-                enemy.TakeDamage(explosionDamage);
+                bestScore = score;
+                best = enemy;
             }
         }
 
-        Debug.Log("Fireball exploded at " + transform.position);
-        StartCoroutine(ExplosionVisual());
+        return best;
     }
 
-    private IEnumerator ExplosionVisual()
+    private EnemyController FindNearestAliveEnemy(EnemyController current, float range, HashSet<EnemyController> exclude)
     {
-        Vector3 originalScale = transform.localScale;
-        Vector3 targetScale = originalScale * explosionScaleMultiplier;
-        float elapsed = 0f;
+        EnemyWaveScript wave = current.EnemyWaveController;
 
-        Renderer rend = GetComponentInChildren<Renderer>();
-        if (rend != null)
+        if (wave != null && wave.aliveEnemies != null)
         {
-            Color explosionTint = new Color(1f, 0.4f, 0f, 1f);
-            rend.material.SetColor("_BaseColor", explosionTint);
-            rend.material.SetColor("_Color", explosionTint);
+            EnemyController nearest = null;
+            float bestSqr = range * range;
+            Vector3 origin = current.transform.position;
+
+            for (int i = wave.aliveEnemies.Count - 1; i >= 0; i--)
+            {
+                GameObject go = wave.aliveEnemies[i];
+                if (go == null)
+                {
+                    wave.aliveEnemies.RemoveAt(i);
+                    continue;
+                }
+
+                EnemyController enemy = go.GetComponent<EnemyController>();
+                if (enemy == null) continue;
+                if (exclude.Contains(enemy)) continue;
+                if (!enemy.gameObject.activeInHierarchy) continue;
+                if (enemy.health <= 0f) continue;
+
+                float sqr = (enemy.transform.position - origin).sqrMagnitude;
+                if (sqr < bestSqr)
+                {
+                    bestSqr = sqr;
+                    nearest = enemy;
+                }
+            }
+
+            if (nearest != null) return nearest;
         }
 
-        while (elapsed < explosionDuration)
+        Collider[] hits = Physics.OverlapSphere(current.transform.position, range);
+        EnemyController best = null;
+        float bestDist = range * range;
+
+        foreach (Collider hit in hits)
         {
-            elapsed += Time.deltaTime;
-            float t = elapsed / explosionDuration;
-            transform.localScale = Vector3.Lerp(originalScale, targetScale, t);
-            yield return null;
+            EnemyController enemy = hit.GetComponent<EnemyController>();
+            if (enemy == null) continue;
+            if (exclude.Contains(enemy)) continue;
+            if (!enemy.gameObject.activeInHierarchy) continue;
+            if (enemy.health <= 0f) continue;
+
+            float sqr = (enemy.transform.position - current.transform.position).sqrMagnitude;
+            if (sqr < bestDist)
+            {
+                bestDist = sqr;
+                best = enemy;
+            }
         }
 
-        Destroy(gameObject);
+        return best;
     }
 }
