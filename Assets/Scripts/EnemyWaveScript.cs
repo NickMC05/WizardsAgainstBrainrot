@@ -59,6 +59,10 @@ public class EnemyWaveScript : MonoBehaviour
     private GameObject tutorialMobInstance;
     private bool tutorialCompleted = false;
 
+    [SerializeField] private GameObject gameOverScreen; // leave empty for now, assign later if wanted
+
+    private bool isGameOver = false;
+
     // ==================== RUNTIME DATA ====================
     [HideInInspector]
     public List<GameObject> aliveEnemies = new List<GameObject>();
@@ -87,6 +91,8 @@ public class EnemyWaveScript : MonoBehaviour
 
         StartTutorialStage();
         UpdateUI();
+        if (gameOverScreen != null)
+            gameOverScreen.SetActive(false);
     }
 
         private void StartTutorialStage()
@@ -144,8 +150,8 @@ public class EnemyWaveScript : MonoBehaviour
 
     public void CompleteTutorialStage()
     {
-        if (tutorialCompleted)
-            return;
+        if (isGameOver) return;
+        if (tutorialCompleted) return;
 
         tutorialCompleted = true;
 
@@ -167,8 +173,8 @@ public class EnemyWaveScript : MonoBehaviour
 
     void Update()
     {
-        if (!tutorialCompleted)
-            return;
+        if (isGameOver) return;
+        if (!tutorialCompleted) return;
 
         if (!isSpawningWave && aliveEnemies.Count == 0 && enemiesRemainingToSpawn == 0 && enemiesKilled >= currentWaveEnemyCount && currentWaveEnemyCount > 0)
         {
@@ -179,6 +185,7 @@ public class EnemyWaveScript : MonoBehaviour
     // ==================== WAVE MANAGEMENT ====================
     public void NextWave()
     {
+        if (isGameOver) return;
         if (!tutorialCompleted)
         {
             Debug.Log("Tutorial has not been completed yet.");
@@ -596,6 +603,46 @@ public class EnemyWaveScript : MonoBehaviour
             Debug.LogError("❌ All spawn points are null! Please assign valid GameObjects.");
         else
             Debug.Log($"✅ Found {validCount} valid spawn points");
+    }
+
+    public void TriggerGameOver()
+    {
+        if (isGameOver)
+            return;
+
+        isGameOver = true;
+        tutorialCompleted = true; // prevent tutorial from starting waves after death condition
+
+        // Stop any active spawn coroutine
+        if (spawnCoroutine != null)
+        {
+            StopCoroutine(spawnCoroutine);
+            spawnCoroutine = null;
+        }
+
+        isSpawningWave = false;
+        enemiesRemainingToSpawn = 0;
+        enemiesSpawnedSoFar = 0;
+        currentPendingIndex = 0;
+        pendingEnemiesToSpawn.Clear();
+
+        // Optional cleanup of tutorial state
+        if (tutorialMobInstance != null)
+        {
+            Destroy(tutorialMobInstance);
+            tutorialMobInstance = null;
+        }
+
+        if (tutorialUIPanel != null)
+            tutorialUIPanel.SetActive(false);
+
+        if (waveOverScreen != null)
+            waveOverScreen.SetActive(false);
+
+        if (gameOverScreen != null)
+            gameOverScreen.SetActive(true);
+
+        Debug.Log("Game Over: a mob reached the fort.");
     }
 
     // Optional: Call this from editor or debug menu to test spawn weights
