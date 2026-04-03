@@ -63,6 +63,9 @@ public class EnemyWaveScript : MonoBehaviour
 
     private bool isGameOver = false;
 
+    [SerializeField] private GameStartUI gameStartUI;
+
+
     // ==================== RUNTIME DATA ====================
     [HideInInspector]
     public List<GameObject> aliveEnemies = new List<GameObject>();
@@ -163,6 +166,10 @@ public class EnemyWaveScript : MonoBehaviour
             Destroy(tutorialMobInstance);
             tutorialMobInstance = null;
         }
+
+        // Trigger the GameStartUI fade effect
+        if (gameStartUI != null)
+            gameStartUI.FadeImageInAndOut();
 
         Debug.Log("Tutorial completed. Starting main waves.");
 
