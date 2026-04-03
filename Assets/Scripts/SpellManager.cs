@@ -21,6 +21,8 @@ public class SpellManager : MonoBehaviour
     [Header("References")]
     [Tooltip("Transform at the wand tip where spell effects originate")]
     [SerializeField] private Transform castOrigin;
+    [Tooltip("The pentagon collider rig that appears while casting")]
+    [SerializeField] private SpellColliderRig spellColliderRig;
 
     [Header("Projectile")]
     [SerializeField] private float launchSpeed = 20f;
@@ -87,6 +89,8 @@ public class SpellManager : MonoBehaviour
         DestroyHeldProjectile();
         OnCastingStarted?.Invoke();
 
+        spellColliderRig?.Show();
+
         if (debugLog)
             Debug.Log("[SpellManager] Casting started.");
     }
@@ -116,6 +120,8 @@ public class SpellManager : MonoBehaviour
 
         if (debugLog)
             Debug.Log($"[SpellManager] Casting finished. Final pattern: {currentPattern}");
+
+        spellColliderRig?.Hide();
 
         if (loadedSpell != null)
         {

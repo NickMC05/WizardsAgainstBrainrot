@@ -1292,6 +1292,7 @@ MonoBehaviour:
     spellColor: {r: 1, g: 0.875397, b: 0, a: 1}
     effectPrefab: {fileID: 6917245603990592789, guid: 86b7712034aff5342a141b0f488563c4, type: 3}
   castOrigin: {fileID: 1899591836}
+  spellColliderRig: {fileID: 1012543029}
   launchSpeed: 20
   projectileLifetime: 8
   useGravityAfterLaunch: 0
@@ -1535,17 +1536,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: c4bcf42dbe3b39e45afe0072ea795a70, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::SpellColliderRig
-  headTransform: {fileID: 249246498}
+  wandTip: {fileID: 1899591836}
   nodeMaterial: {fileID: 2100000, guid: 7a723ecfb519e7945a7fa67bed0a57f1, type: 2}
-  distanceFromHead: 0.8
   pentagonRadius: 0.2
-  heightOffset: -0.05
   nodeSize: 0.1
   angleOffset: 0
   pentagonSprite: {fileID: 21300000, guid: baaa0fe2565431e45a37e591be399c18, type: 3}
   imageSize: 0.6
   imageDepthOffset: 0.005
   followSpeed: 12
+  positionOffset: {x: 0, y: 0, z: 0}
 --- !u!4 &1012543030
 Transform:
   m_ObjectHideFlags: 0

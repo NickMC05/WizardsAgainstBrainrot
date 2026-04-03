@@ -3,18 +3,16 @@ using UnityEngine;
 public class SpellColliderRig : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Leave empty to auto-find Camera.main at Start")]
-    [SerializeField] private Transform headTransform;
+    [Tooltip("The wand tip transform to follow when hidden")]
+    [SerializeField] private Transform wandTip;
 
     [Header("Materials (REQUIRED — create in Editor)")]
     [Tooltip("Transparent URP/Lit material for the circle nodes")]
     [SerializeField] private Material nodeMaterial;
 
     [Header("Pentagon Layout")]
-    [SerializeField] private float distanceFromHead = 0.45f;
-    [SerializeField] private float pentagonRadius   = 0.12f;
-    [SerializeField] private float heightOffset     = -0.05f;
-    [SerializeField] private float nodeSize         = 0.06f;
+    [SerializeField] private float pentagonRadius = 0.12f;
+    [SerializeField] private float nodeSize = 0.06f;
 
     [Tooltip("Degrees to rotate all five points. 0 = node 1 at top.")]
     [SerializeField] private float angleOffset = 0f;
@@ -27,29 +25,34 @@ public class SpellColliderRig : MonoBehaviour
 
     [Header("Follow Behaviour")]
     [SerializeField] private float followSpeed = 12f;
+    [Tooltip("Offset from wand tip in wand-local space")]
+    [SerializeField] private Vector3 positionOffset = Vector3.zero;
 
     private SpellCollider[] nodes;
+    private bool isShowing;
+    private GameObject visualRoot;
 
     void Start()
     {
-        if (headTransform == null)
+        if (wandTip == null)
         {
-            Camera cam = Camera.main;
-            if (cam != null)
-                headTransform = cam.transform;
-            else
-            {
-                Debug.LogError("[SpellColliderRig] No head transform and no main camera found.");
-                enabled = false;
-                return;
-            }
+            Debug.LogError("[SpellColliderRig] wandTip is not assigned.");
+            enabled = false;
+            return;
         }
 
         if (nodeMaterial == null)
-            Debug.LogError("[SpellColliderRig] nodeMaterial is not assigned! Circles will be pink/purple on Quest.");
+            Debug.LogError("[SpellColliderRig] nodeMaterial is not assigned! Nodes will be pink/purple on Quest.");
+
+        visualRoot = new GameObject("VisualRoot");
+        visualRoot.transform.SetParent(transform);
+        visualRoot.transform.localPosition = Vector3.zero;
+        visualRoot.transform.localRotation = Quaternion.identity;
+        visualRoot.transform.localScale = Vector3.one;
 
         BuildBackgroundImage();
         BuildPentagon();
+        SetVisible(false);
     }
 
     // ─────────────────────────────────────────────
@@ -64,7 +67,7 @@ public class SpellColliderRig : MonoBehaviour
         }
 
         GameObject bg = new GameObject("PentagonBackground");
-        bg.transform.SetParent(transform);
+        bg.transform.SetParent(visualRoot.transform);
         bg.transform.localPosition = new Vector3(0f, 0f, imageDepthOffset);
         bg.transform.localRotation = Quaternion.identity;
 
@@ -74,7 +77,6 @@ public class SpellColliderRig : MonoBehaviour
         sr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         sr.receiveShadows = false;
 
-        // Scale to desired world-space size
         float spriteWorldWidth = pentagonSprite.bounds.size.x;
         float scaleFactor = imageSize / spriteWorldWidth;
         bg.transform.localScale = Vector3.one * scaleFactor;
@@ -91,7 +93,7 @@ public class SpellColliderRig : MonoBehaviour
         {
             GameObject disc = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
             disc.name = $"SpellNode_{i + 1}";
-            disc.transform.SetParent(transform);
+            disc.transform.SetParent(visualRoot.transform);
 
             disc.transform.localScale = new Vector3(nodeSize, 0.2f, nodeSize);
             disc.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
@@ -110,22 +112,58 @@ public class SpellColliderRig : MonoBehaviour
     }
 
     // ─────────────────────────────────────────────
-    //  Follow head (yaw only)
+    //  Update — follow wand tip while hidden
     // ─────────────────────────────────────────────
     void Update()
     {
-        if (headTransform == null) return;
+        if (!isShowing)
+            FollowWandTip();
+    }
 
-        float yaw = headTransform.eulerAngles.y;
-        Quaternion yawRot = Quaternion.Euler(0f, yaw, 0f);
+    private void FollowWandTip()
+    {
+        if (wandTip == null) return;
 
-        Vector3 forward   = yawRot * Vector3.forward;
-        Vector3 targetPos = headTransform.position
-                          + forward * distanceFromHead
-                          + Vector3.up * heightOffset;
+        Vector3 targetPos = wandTip.position + wandTip.rotation * positionOffset;
+
+        float yaw = wandTip.eulerAngles.y;
+        Quaternion targetRot = Quaternion.Euler(0f, yaw, 0f);
 
         float t = Time.deltaTime * followSpeed;
         transform.position = Vector3.Lerp(transform.position, targetPos, t);
-        transform.rotation = Quaternion.Slerp(transform.rotation, yawRot, t);
+        transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, t);
+    }
+
+    // ─────────────────────────────────────────────
+    //  Public Show / Hide — called by SpellManager
+    // ─────────────────────────────────────────────
+    public void Show()
+    {
+        if (isShowing) return;
+        isShowing = true;
+
+        // Snap to current wand tip so there's no visible lerp
+        if (wandTip != null)
+        {
+            transform.position = wandTip.position + wandTip.rotation * positionOffset;
+            float yaw = wandTip.eulerAngles.y;
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        }
+
+        SetVisible(true);
+    }
+
+    public void Hide()
+    {
+        if (!isShowing) return;
+        isShowing = false;
+        SetVisible(false);
+    }
+
+    public bool IsShowing => isShowing;
+
+    private void SetVisible(bool visible)
+    {
+        visualRoot.SetActive(visible);
     }
 }
