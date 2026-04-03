@@ -51,6 +51,14 @@ public class EnemyWaveScript : MonoBehaviour
     public TMP_Text killAndWaveCounter;
     public GameObject waveOverScreen;
 
+    [Header("Tutorial Stage")]
+    [SerializeField] private GameObject tutorialMobPrefab;
+    [SerializeField] private Transform tutorialMobSpawnPoint;
+    [SerializeField] private Vector3 tutorialSpawnOffset = new Vector3(0f, 0f, 3f);
+    [SerializeField] private GameObject tutorialUIPanel; // New: panel shown during tutorial
+    private GameObject tutorialMobInstance;
+    private bool tutorialCompleted = false;
+
     // ==================== RUNTIME DATA ====================
     [HideInInspector]
     public List<GameObject> aliveEnemies = new List<GameObject>();
@@ -71,26 +79,97 @@ public class EnemyWaveScript : MonoBehaviour
     // ==================== UNITY MESSAGES ====================
     void Start()
     {
-        // Initialize Fibonacci sequence
         fibPrev = fibWave1Count;
         fibCurr = fibWave2Count;
 
-        // Calculate enemy count for Wave 1
-        CalculateWaveEnemyCount();
-
-        // Validate spawn points
         ValidateSpawnPoints();
+        ValidateMonsterPool();
 
-        StartWaveSpawning();
+        StartTutorialStage();
+        UpdateUI();
+    }
+
+        private void StartTutorialStage()
+    {
+        tutorialCompleted = false;
+
+        if (waveOverScreen != null)
+            waveOverScreen.SetActive(false);
+
+        if (tutorialUIPanel != null)
+            tutorialUIPanel.SetActive(true);
+
+        if (currentWave <= 0)
+            currentWave = 0;
+
+        enemiesKilled = 0;
+        enemiesSpawnedSoFar = 0;
+        enemiesRemainingToSpawn = 0;
+        currentPendingIndex = 0;
+        pendingEnemiesToSpawn.Clear();
+        aliveEnemies.Clear();
         UpdateUI();
 
-        // Optional: Validate monster pool on start
-        ValidateMonsterPool();
+        SpawnTutorialMob();
+        Debug.Log("Tutorial stage started. Cast a fireball to continue.");
+    }
+
+    private void SpawnTutorialMob()
+    {
+        if (tutorialMobPrefab == null)
+        {
+            Debug.LogWarning("Tutorial mob prefab is not assigned.");
+            return;
+        }
+
+        Transform spawnAnchor = tutorialMobSpawnPoint != null ? tutorialMobSpawnPoint : playerTransform;
+        if (spawnAnchor == null)
+        {
+            spawnAnchor = transform;
+        }
+
+        Vector3 spawnPos = spawnAnchor.position + spawnAnchor.forward * tutorialSpawnOffset.z
+                         + spawnAnchor.right * tutorialSpawnOffset.x
+                         + spawnAnchor.up * tutorialSpawnOffset.y;
+
+        tutorialMobInstance = Instantiate(tutorialMobPrefab, spawnPos, Quaternion.LookRotation(-spawnAnchor.forward));
+        TutorialTarget tutorialTarget = tutorialMobInstance.GetComponent<TutorialTarget>();
+        if (tutorialTarget != null)
+        {
+            tutorialTarget.Initialize(this);
+        }
+
+        Debug.Log($"Tutorial mob spawned at {spawnPos}");
+    }
+
+    public void CompleteTutorialStage()
+    {
+        if (tutorialCompleted)
+            return;
+
+        tutorialCompleted = true;
+
+        if (tutorialUIPanel != null)
+            tutorialUIPanel.SetActive(false);
+
+        if (tutorialMobInstance != null)
+        {
+            Destroy(tutorialMobInstance);
+            tutorialMobInstance = null;
+        }
+
+        Debug.Log("Tutorial completed. Starting main waves.");
+
+        CalculateWaveEnemyCount();
+        UpdateUI();
+        StartWaveSpawning();
     }
 
     void Update()
     {
-        // Check if current wave is cleared (no enemies alive AND no enemies waiting to spawn)
+        if (!tutorialCompleted)
+            return;
+
         if (!isSpawningWave && aliveEnemies.Count == 0 && enemiesRemainingToSpawn == 0 && enemiesKilled >= currentWaveEnemyCount && currentWaveEnemyCount > 0)
         {
             OnWaveCleared();
@@ -100,6 +179,12 @@ public class EnemyWaveScript : MonoBehaviour
     // ==================== WAVE MANAGEMENT ====================
     public void NextWave()
     {
+        if (!tutorialCompleted)
+        {
+            Debug.Log("Tutorial has not been completed yet.");
+            return;
+        }
+
         waveOverScreen.SetActive(false);
         currentWave++;
 

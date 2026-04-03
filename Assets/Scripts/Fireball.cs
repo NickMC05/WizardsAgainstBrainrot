@@ -114,13 +114,27 @@ public class Fireball : MonoBehaviour
         if (hasExploded) return;
         if (Time.time - spawnTime < spawnGracePeriod) return;
 
+        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
+
+        TutorialTarget tutorialTarget = other.GetComponentInParent<TutorialTarget>();
+        if (tutorialTarget != null)
+        {
+            if (audioMgr != null)
+            {
+                audioMgr.PlaySpellExplodeSFX();
+            }
+
+            tutorialTarget.OnFireballHit();
+            Explode();
+            return;
+        }
+
         bool hitEnemy = other.GetComponent<EnemyController>() != null;
         bool hitGround = other.gameObject.name == "Ground plane"
                       || other.gameObject.name.Contains("Ground");
 
         if (!hitGround && !hitEnemy) return;
 
-        BackgroundMusicManager audioMgr = FindObjectOfType<BackgroundMusicManager>();
         if (audioMgr != null)
         {
             audioMgr.PlaySpellExplodeSFX();
