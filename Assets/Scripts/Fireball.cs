@@ -188,27 +188,38 @@ public class Fireball : MonoBehaviour
     }
 
     private IEnumerator ExplosionVisual()
+{
+    Vector3 originalScale = transform.localScale;
+    Vector3 targetScale = originalScale * explosionScaleMultiplier;
+    Vector3 originalPosition = transform.position;
+    float elapsed = 0f;
+
+    Renderer rend = GetComponentInChildren<Renderer>();
+
+    // Calculate offset from the transform pivot to the actual visual center
+    Vector3 centerOffset = Vector3.zero;
+    if (rend != null)
     {
-        Vector3 originalScale = transform.localScale;
-        Vector3 targetScale = originalScale * explosionScaleMultiplier;
-        float elapsed = 0f;
+        centerOffset = rend.bounds.center - transform.position;
 
-        Renderer rend = GetComponentInChildren<Renderer>();
-        if (rend != null)
-        {
-            Color explosionTint = new Color(1f, 0.4f, 0f, 1f);
-            rend.material.SetColor("_BaseColor", explosionTint);
-            rend.material.SetColor("_Color", explosionTint);
-        }
-
-        while (elapsed < explosionDuration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / explosionDuration;
-            transform.localScale = Vector3.Lerp(originalScale, targetScale, t);
-            yield return null;
-        }
-
-        Destroy(gameObject);
+        Color explosionTint = new Color(1f, 0.4f, 0f, 1f);
+        rend.material.SetColor("_BaseColor", explosionTint);
+        rend.material.SetColor("_Color", explosionTint);
     }
+
+    while (elapsed < explosionDuration)
+    {
+        elapsed += Time.deltaTime;
+        float t = elapsed / explosionDuration;
+        transform.localScale = Vector3.Lerp(originalScale, targetScale, t);
+
+        // Shift position to keep the visual center stationary as scale grows
+        float scaleRatio = transform.localScale.x / originalScale.x;
+        transform.position = originalPosition - centerOffset * (scaleRatio - 1f);
+
+        yield return null;
+    }
+
+    Destroy(gameObject);
+}
 }
