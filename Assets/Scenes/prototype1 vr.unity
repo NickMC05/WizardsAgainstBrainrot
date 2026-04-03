@@ -2265,8 +2265,8 @@ MonoBehaviour:
   nodeSize: 0.1
   angleOffset: 0
   colliderDepth: 0.2
-  showColliderVisuals: 1
-  touchParticleColor: {r: 1, g: 0.6707765, b: 0.2980392, a: 1}
+  showColliderVisuals: 0
+  touchParticleColor: {r: 1, g: 0.7730478, b: 0.2980392, a: 1}
   pentagonSprite: {fileID: 21300000, guid: baaa0fe2565431e45a37e591be399c18, type: 3}
   imageSize: 0.6
   imageDepthOffset: 0.005
