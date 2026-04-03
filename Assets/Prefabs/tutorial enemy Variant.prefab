@@ -13,6 +13,18 @@ PrefabInstance:
       value: tutorial enemy Variant
       objectReference: {fileID: 0}
     - target: {fileID: 7261231910960067335, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
+      propertyPath: m_LocalScale.x
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7261231910960067335, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
+      propertyPath: m_LocalScale.y
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7261231910960067335, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
+      propertyPath: m_LocalScale.z
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7261231910960067335, guid: 9975b8f74f26d49519d104a43338c345, type: 3}
       propertyPath: m_LocalPosition.x
       value: 0.055
       objectReference: {fileID: 0}

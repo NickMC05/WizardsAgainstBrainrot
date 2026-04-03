@@ -21,27 +21,36 @@ public class WaveSpell : MonoBehaviour
     [SerializeField] private float pulseSpeed = 5f;
     [SerializeField] private float pulseAmount = 0.2f;
 
-    [Header("Foam Particles")]
-    [SerializeField] private int foamEmissionRate = 60;
-    [SerializeField] private float foamLifetime = 0.6f;
-    [SerializeField] private float foamParticleSize = 0.06f;
-    [SerializeField] private Color foamColorStart = new Color(0.85f, 0.95f, 1f, 0.9f);
+    [Header("Foam Spheres (Waterline)")]
+    [SerializeField] private int foamEmissionRate = 80;
+    [SerializeField] private float foamLifetime = 0.7f;
+    [SerializeField] private float foamSphereMinSize = 0.15f;
+    [SerializeField] private float foamSphereMaxSize = 0.35f;
+    [SerializeField] private Color foamColorStart = new Color(0.9f, 0.97f, 1f, 0.95f);
     [SerializeField] private Color foamColorEnd = new Color(1f, 1f, 1f, 0f);
-    [SerializeField] private float foamSpreadWidth = 0.5f;
-    [SerializeField] private float foamSpreadHeight = 0.2f;
+    [SerializeField] private float foamSpreadWidth = 0.6f;
+    [SerializeField] private float foamSpreadLength = 0.3f;
 
-    [Header("Spray Particles")]
-    [SerializeField] private int sprayEmissionRate = 25;
+    [Header("Edge Foam Spheres (Leading & Side Edges)")]
+    [SerializeField] private int edgeFoamRate = 50;
+    [SerializeField] private float edgeFoamLifetime = 0.5f;
+    [SerializeField] private float edgeFoamMinSize = 0.1f;
+    [SerializeField] private float edgeFoamMaxSize = 0.25f;
+    [SerializeField] private Color edgeFoamColor = new Color(1f, 1f, 1f, 0.9f);
+
+    [Header("Spray Droplets")]
+    [SerializeField] private int sprayEmissionRate = 30;
     [SerializeField] private float sprayLifetime = 0.5f;
-    [SerializeField] private float sprayParticleSize = 0.03f;
+    [SerializeField] private float spraySphereMinSize = 0.06f;
+    [SerializeField] private float spraySphereMaxSize = 0.12f;
     [SerializeField] private Color sprayColor = new Color(0.9f, 0.97f, 1f, 0.7f);
-    [SerializeField] private float sprayUpwardSpeed = 1.5f;
+    [SerializeField] private float sprayUpwardSpeed = 2f;
 
-    [Header("Mist Particles")]
+    [Header("Mist")]
     [SerializeField] private int mistEmissionRate = 15;
     [SerializeField] private float mistLifetime = 1.0f;
     [SerializeField] private float mistParticleSize = 0.15f;
-    [SerializeField] private Color mistColor = new Color(0.8f, 0.92f, 1f, 0.3f);
+    [SerializeField] private Color mistColor = new Color(0.8f, 0.92f, 1f, 0.25f);
 
     private Rigidbody rb;
     private BoxCollider col;
@@ -53,8 +62,11 @@ public class WaveSpell : MonoBehaviour
     private Vector3 originalScale;
 
     private ParticleSystem foamParticles;
+    private ParticleSystem edgeFoamParticles;
     private ParticleSystem sprayParticles;
     private ParticleSystem mistParticles;
+
+    private Mesh sphereMesh;
 
     void Awake()
     {
@@ -63,8 +75,6 @@ public class WaveSpell : MonoBehaviour
         rb.isKinematic = false;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
-
-        // Lock rotation on X and Z axes
         rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
 
         col = GetComponent<BoxCollider>();
@@ -72,14 +82,16 @@ public class WaveSpell : MonoBehaviour
 
         originalScale = transform.localScale;
 
+        GameObject tempSphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        sphereMesh = tempSphere.GetComponent<MeshFilter>().sharedMesh;
+        Destroy(tempSphere);
+
         CreateFoamParticles();
+        CreateEdgeFoamParticles();
         CreateSprayParticles();
         CreateMistParticles();
     }
 
-    /// <summary>
-    /// Call this right after Instantiate to set the launch direction.
-    /// </summary>
     public void SetDirection(Vector3 direction)
     {
         launchDirection = direction.normalized;
@@ -119,7 +131,6 @@ public class WaveSpell : MonoBehaviour
 
         if (launchDirection != Vector3.zero)
         {
-            // Only rotate around Y axis
             Quaternion targetRot = Quaternion.LookRotation(launchDirection, Vector3.up);
             transform.rotation = Quaternion.Euler(0f, targetRot.eulerAngles.y, 0f);
         }
@@ -146,7 +157,6 @@ public class WaveSpell : MonoBehaviour
         pos.y = fixedYPosition;
         transform.position = pos;
 
-        // Enforce flat rotation every physics step
         Vector3 euler = transform.rotation.eulerAngles;
         transform.rotation = Quaternion.Euler(0f, euler.y, 0f);
     }
@@ -182,7 +192,7 @@ public class WaveSpell : MonoBehaviour
     }
 
     // ──────────────────────────────────────────────
-    //  Particle creation
+    //  Shared particle material
     // ──────────────────────────────────────────────
 
     private Material CreateParticleMaterial(Color color)
@@ -202,13 +212,16 @@ public class WaveSpell : MonoBehaviour
         mat.renderQueue = 3000;
         mat.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
         mat.EnableKeyword("_ALPHABLEND_ON");
-
         return mat;
     }
 
+    // ──────────────────────────────────────────────
+    //  Main foam: sphere meshes along the waterline
+    // ──────────────────────────────────────────────
+
     private void CreateFoamParticles()
     {
-        GameObject obj = new GameObject("FoamParticles");
+        GameObject obj = new GameObject("FoamSpheres");
         obj.transform.SetParent(transform, false);
         obj.transform.localPosition = Vector3.zero;
 
@@ -216,176 +229,260 @@ public class WaveSpell : MonoBehaviour
         foamParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         var main = foamParticles.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(foamLifetime * 0.5f, foamLifetime);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 0.6f);
-        main.startSize = new ParticleSystem.MinMaxCurve(foamParticleSize * 0.5f, foamParticleSize);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(foamLifetime * 0.6f, foamLifetime);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 0.8f);
+        // Uniform size so they stay perfectly spherical
+        main.startSize3D = false;
+        main.startSize = new ParticleSystem.MinMaxCurve(foamSphereMinSize, foamSphereMaxSize);
         main.startColor = foamColorStart;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.maxParticles = 300;
-        main.gravityModifier = -0.05f;
-        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.gravityModifier = 0.3f;
+        main.startRotation3D = true;
+        main.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
 
         var emission = foamParticles.emission;
         emission.rateOverTime = foamEmissionRate;
 
-        // Emit from a box shape matching the wave's front face
         var shape = foamParticles.shape;
         shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale = new Vector3(foamSpreadWidth, foamSpreadHeight, 0.05f);
-        shape.position = new Vector3(0f, 0f, 0f);
+        shape.scale = new Vector3(foamSpreadWidth, 0.04f, foamSpreadLength);
+        shape.position = Vector3.zero;
 
-        // Size over lifetime: grow slightly then shrink
-        var sizeOverLifetime = foamParticles.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
+        var sol = foamParticles.sizeOverLifetime;
+        sol.enabled = true;
         AnimationCurve sizeCurve = new AnimationCurve();
-        sizeCurve.AddKey(0f, 0.5f);
-        sizeCurve.AddKey(0.2f, 1f);
-        sizeCurve.AddKey(1f, 0f);
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+        sizeCurve.AddKey(0f, 0.8f);
+        sizeCurve.AddKey(0.3f, 1f);
+        sizeCurve.AddKey(1f, 0.2f);
+        sol.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
-        // Color over lifetime: white/blue foam fading out
-        var colorOverLifetime = foamParticles.colorOverLifetime;
-        colorOverLifetime.enabled = true;
+        var colModule = foamParticles.colorOverLifetime;
+        colModule.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[]
             {
                 new GradientColorKey(foamColorStart, 0f),
-                new GradientColorKey(new Color(1f, 1f, 1f), 0.3f),
                 new GradientColorKey(foamColorEnd, 1f)
             },
             new GradientAlphaKey[]
             {
-                new GradientAlphaKey(0.9f, 0f),
-                new GradientAlphaKey(0.7f, 0.4f),
+                new GradientAlphaKey(0.95f, 0f),
+                new GradientAlphaKey(0.8f, 0.4f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
-        colorOverLifetime.color = grad;
+        colModule.color = grad;
 
-        // Rotation over lifetime for a tumbling foam look
-        var rotOverLifetime = foamParticles.rotationOverLifetime;
-        rotOverLifetime.enabled = true;
-        rotOverLifetime.z = new ParticleSystem.MinMaxCurve(-1f, 1f);
-
-        // Noise for organic foam movement
         var noise = foamParticles.noise;
         noise.enabled = true;
         noise.strength = 0.3f;
-        noise.frequency = 3f;
+        noise.frequency = 2f;
         noise.scrollSpeed = 1f;
-        noise.octaveCount = 2;
+        noise.damping = true;
 
         var renderer = obj.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Mesh;
+        renderer.mesh = sphereMesh;
         renderer.material = CreateParticleMaterial(foamColorStart);
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
 
         foamParticles.Play();
     }
 
+    // ──────────────────────────────────────────────
+    //  Edge foam: sphere meshes at the leading edge
+    // ──────────────────────────────────────────────
+
+    private void CreateEdgeFoamParticles()
+    {
+        GameObject obj = new GameObject("EdgeFoamSpheres");
+        obj.transform.SetParent(transform, false);
+        obj.transform.localPosition = new Vector3(0f, 0f, foamSpreadLength * 0.5f);
+
+        edgeFoamParticles = obj.AddComponent<ParticleSystem>();
+        edgeFoamParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+
+        var main = edgeFoamParticles.main;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(edgeFoamLifetime * 0.5f, edgeFoamLifetime);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.5f, 1.5f);
+        main.startSize3D = false;
+        main.startSize = new ParticleSystem.MinMaxCurve(edgeFoamMinSize, edgeFoamMaxSize);
+        main.startColor = edgeFoamColor;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.maxParticles = 200;
+        main.gravityModifier = 0.5f;
+        main.startRotation3D = true;
+        main.startRotationX = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.startRotationY = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.startRotationZ = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+
+        var emission = edgeFoamParticles.emission;
+        emission.rateOverTime = edgeFoamRate;
+
+        var shape = edgeFoamParticles.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = new Vector3(foamSpreadWidth * 1.1f, 0.03f, 0.05f);
+
+        var vel = edgeFoamParticles.velocityOverLifetime;
+        vel.enabled = true;
+        vel.space = ParticleSystemSimulationSpace.Local;
+        vel.x = new ParticleSystem.MinMaxCurve(-0.5f, 0.5f);
+        vel.y = new ParticleSystem.MinMaxCurve(0.2f, 0.6f);
+        vel.z = new ParticleSystem.MinMaxCurve(0.3f, 1.0f);
+
+        var sol = edgeFoamParticles.sizeOverLifetime;
+        sol.enabled = true;
+        AnimationCurve sizeCurve = new AnimationCurve();
+        sizeCurve.AddKey(0f, 1f);
+        sizeCurve.AddKey(0.5f, 0.7f);
+        sizeCurve.AddKey(1f, 0f);
+        sol.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+
+        var colModule = edgeFoamParticles.colorOverLifetime;
+        colModule.enabled = true;
+        Gradient grad = new Gradient();
+        grad.SetKeys(
+            new GradientColorKey[]
+            {
+                new GradientColorKey(edgeFoamColor, 0f),
+                new GradientColorKey(Color.white, 0.5f),
+                new GradientColorKey(new Color(0.8f, 0.9f, 1f), 1f)
+            },
+            new GradientAlphaKey[]
+            {
+                new GradientAlphaKey(0.9f, 0f),
+                new GradientAlphaKey(0.6f, 0.5f),
+                new GradientAlphaKey(0f, 1f)
+            }
+        );
+        colModule.color = grad;
+
+        var noise = edgeFoamParticles.noise;
+        noise.enabled = true;
+        noise.strength = 0.4f;
+        noise.frequency = 3f;
+        noise.damping = true;
+
+        var renderer = obj.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Mesh;
+        renderer.mesh = sphereMesh;
+        renderer.material = CreateParticleMaterial(edgeFoamColor);
+        renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
+
+        edgeFoamParticles.Play();
+    }
+
+    // ──────────────────────────────────────────────
+    //  Spray: small sphere droplets shooting upward
+    // ──────────────────────────────────────────────
+
     private void CreateSprayParticles()
     {
-        GameObject obj = new GameObject("SprayParticles");
+        GameObject obj = new GameObject("SprayDroplets");
         obj.transform.SetParent(transform, false);
-        obj.transform.localPosition = new Vector3(0f, 0.1f, 0f);
+        obj.transform.localPosition = new Vector3(0f, 0.05f, foamSpreadLength * 0.3f);
 
         sprayParticles = obj.AddComponent<ParticleSystem>();
         sprayParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         var main = sprayParticles.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(sprayLifetime * 0.4f, sprayLifetime);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(sprayLifetime * 0.5f, sprayLifetime);
         main.startSpeed = new ParticleSystem.MinMaxCurve(sprayUpwardSpeed * 0.5f, sprayUpwardSpeed);
-        main.startSize = new ParticleSystem.MinMaxCurve(sprayParticleSize * 0.3f, sprayParticleSize);
+        main.startSize3D = false;
+        main.startSize = new ParticleSystem.MinMaxCurve(spraySphereMinSize, spraySphereMaxSize);
         main.startColor = sprayColor;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.maxParticles = 150;
-        main.gravityModifier = 0.4f; // spray arcs up then falls
+        main.gravityModifier = 1.2f;
 
         var emission = sprayParticles.emission;
         emission.rateOverTime = sprayEmissionRate;
 
-        // Emit from a line across the top of the wave
         var shape = sprayParticles.shape;
         shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale = new Vector3(foamSpreadWidth * 0.8f, 0.02f, 0.02f);
-        shape.rotation = new Vector3(-30f, 0f, 0f); // angled upward and forward
+        shape.scale = new Vector3(foamSpreadWidth * 0.8f, 0.01f, 0.08f);
+        shape.rotation = new Vector3(-30f, 0f, 0f);
 
-        // Size over lifetime
-        var sizeOverLifetime = sprayParticles.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
+        var sol = sprayParticles.sizeOverLifetime;
+        sol.enabled = true;
         AnimationCurve sizeCurve = new AnimationCurve();
         sizeCurve.AddKey(0f, 1f);
-        sizeCurve.AddKey(0.5f, 0.6f);
-        sizeCurve.AddKey(1f, 0f);
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+        sizeCurve.AddKey(1f, 0.3f);
+        sol.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
-        // Color over lifetime
-        var colorOverLifetime = sprayParticles.colorOverLifetime;
-        colorOverLifetime.enabled = true;
+        var colModule = sprayParticles.colorOverLifetime;
+        colModule.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[]
             {
                 new GradientColorKey(sprayColor, 0f),
-                new GradientColorKey(Color.white, 0.5f),
-                new GradientColorKey(sprayColor, 1f)
+                new GradientColorKey(Color.white, 1f)
             },
             new GradientAlphaKey[]
             {
                 new GradientAlphaKey(0.7f, 0f),
-                new GradientAlphaKey(0.4f, 0.5f),
+                new GradientAlphaKey(0.3f, 0.6f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
-        colorOverLifetime.color = grad;
+        colModule.color = grad;
 
         var renderer = obj.GetComponent<ParticleSystemRenderer>();
+        renderer.renderMode = ParticleSystemRenderMode.Mesh;
+        renderer.mesh = sphereMesh;
         renderer.material = CreateParticleMaterial(sprayColor);
-        renderer.renderMode = ParticleSystemRenderMode.Billboard;
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
 
         sprayParticles.Play();
     }
+
+    // ──────────────────────────────────────────────
+    //  Mist: soft billboard particles trailing behind
+    // ──────────────────────────────────────────────
 
     private void CreateMistParticles()
     {
         GameObject obj = new GameObject("MistParticles");
         obj.transform.SetParent(transform, false);
-        obj.transform.localPosition = new Vector3(0f, 0f, -0.2f); // behind the wave
+        obj.transform.localPosition = new Vector3(0f, 0.02f, -foamSpreadLength * 0.3f);
 
         mistParticles = obj.AddComponent<ParticleSystem>();
         mistParticles.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
 
         var main = mistParticles.main;
-        main.startLifetime = new ParticleSystem.MinMaxCurve(mistLifetime * 0.6f, mistLifetime);
-        main.startSpeed = new ParticleSystem.MinMaxCurve(0.05f, 0.15f);
-        main.startSize = new ParticleSystem.MinMaxCurve(mistParticleSize * 0.5f, mistParticleSize);
+        main.startLifetime = new ParticleSystem.MinMaxCurve(mistLifetime * 0.7f, mistLifetime);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(0.1f, 0.4f);
+        main.startSize = new ParticleSystem.MinMaxCurve(mistParticleSize * 0.6f, mistParticleSize);
         main.startColor = mistColor;
         main.simulationSpace = ParticleSystemSimulationSpace.World;
-        main.maxParticles = 100;
-        main.gravityModifier = -0.02f;
-        main.startRotation = new ParticleSystem.MinMaxCurve(0f, Mathf.PI * 2f);
+        main.maxParticles = 60;
+        main.gravityModifier = -0.05f;
 
         var emission = mistParticles.emission;
         emission.rateOverTime = mistEmissionRate;
 
         var shape = mistParticles.shape;
         shape.shapeType = ParticleSystemShapeType.Box;
-        shape.scale = new Vector3(foamSpreadWidth * 1.2f, foamSpreadHeight * 0.5f, 0.1f);
+        shape.scale = new Vector3(foamSpreadWidth * 0.9f, 0.05f, 0.15f);
 
-        // Size over lifetime: grow then fade
-        var sizeOverLifetime = mistParticles.sizeOverLifetime;
-        sizeOverLifetime.enabled = true;
+        var sol = mistParticles.sizeOverLifetime;
+        sol.enabled = true;
         AnimationCurve sizeCurve = new AnimationCurve();
-        sizeCurve.AddKey(0f, 0.3f);
+        sizeCurve.AddKey(0f, 0.5f);
         sizeCurve.AddKey(0.3f, 1f);
-        sizeCurve.AddKey(1f, 0.8f);
-        sizeOverLifetime.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
+        sizeCurve.AddKey(1f, 1.3f);
+        sol.size = new ParticleSystem.MinMaxCurve(1f, sizeCurve);
 
-        // Color over lifetime
-        var colorOverLifetime = mistParticles.colorOverLifetime;
-        colorOverLifetime.enabled = true;
+        var colModule = mistParticles.colorOverLifetime;
+        colModule.enabled = true;
         Gradient grad = new Gradient();
         grad.SetKeys(
             new GradientColorKey[]
@@ -395,57 +492,26 @@ public class WaveSpell : MonoBehaviour
             },
             new GradientAlphaKey[]
             {
-                new GradientAlphaKey(0.3f, 0f),
-                new GradientAlphaKey(0.15f, 0.5f),
+                new GradientAlphaKey(0f, 0f),
+                new GradientAlphaKey(0.25f, 0.2f),
+                new GradientAlphaKey(0.15f, 0.6f),
                 new GradientAlphaKey(0f, 1f)
             }
         );
-        colorOverLifetime.color = grad;
+        colModule.color = grad;
 
-        // Noise for drifting mist
         var noise = mistParticles.noise;
         noise.enabled = true;
         noise.strength = 0.15f;
-        noise.frequency = 1.5f;
+        noise.frequency = 1f;
         noise.scrollSpeed = 0.5f;
 
         var renderer = obj.GetComponent<ParticleSystemRenderer>();
-        renderer.material = CreateParticleMaterial(mistColor);
         renderer.renderMode = ParticleSystemRenderMode.Billboard;
+        renderer.material = CreateParticleMaterial(mistColor);
         renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        renderer.receiveShadows = false;
 
         mistParticles.Play();
-    }
-
-    void OnDestroy()
-    {
-        // Detach particles so they fade out naturally when the wave is destroyed
-        DetachParticleSystem(foamParticles, foamLifetime);
-        DetachParticleSystem(sprayParticles, sprayLifetime);
-        DetachParticleSystem(mistParticles, mistLifetime);
-    }
-
-    private void DetachParticleSystem(ParticleSystem ps, float cleanupDelay)
-    {
-        if (ps != null && ps.gameObject != null)
-        {
-            ps.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-            ps.transform.SetParent(null);
-            Destroy(ps.gameObject, cleanupDelay + 0.5f);
-        }
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        Gizmos.color = Color.cyan;
-        Vector3 center = transform.position;
-        center.y = fixedYPosition;
-        Gizmos.DrawWireSphere(center, 0.5f);
-
-        if (directionSet && Application.isPlaying)
-        {
-            Gizmos.color = Color.green;
-            Gizmos.DrawRay(transform.position, launchDirection * 2f);
-        }
     }
 }
