@@ -216,7 +216,7 @@ MonoBehaviour:
   spawnGracePeriod: 0.15
   spawnForwardOffset: 0.3
   fixedYPosition: 0.5
-  directDamage: 40
+  directDamage: 20
   hitCooldown: 1
   pulseSpeed: 0
   pulseAmount: 0.2

@@ -155,7 +155,7 @@ MonoBehaviour:
   projectileScale: 1
   initialRange: 50
   bounceRange: 8
-  directDamage: 20
+  directDamage: 25
   bounceDamage: 15
   maxBounces: 3
   bounceDelay: 0.08

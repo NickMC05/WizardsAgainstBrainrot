@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 4363660761218258646}
   - component: {fileID: 8086114756135724690}
   - component: {fileID: 2194939926696346629}
+  - component: {fileID: 3067636511210068694}
   m_Layer: 0
   m_Name: "\u0421\u0444\u0435\u0440\u0430"
   m_TagString: Untagged
@@ -89,6 +90,19 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
+--- !u!114 &3067636511210068694
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1588602607597839901}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bb7c2e74c461b1409f8d26bcf8247fe, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::ConstantZRotation
+  rotationSpeed: 180
 --- !u!1 &2552082262020233073
 GameObject:
   m_ObjectHideFlags: 0
@@ -5099,7 +5113,7 @@ SphereCollider:
   m_Enabled: 1
   serializedVersion: 3
   m_Radius: 0.5
-  m_Center: {x: 0, y: 0, z: 0}
+  m_Center: {x: 0, y: 0.89, z: 0}
 --- !u!114 &9069209217353696372
 MonoBehaviour:
   m_ObjectHideFlags: 0
