@@ -174,6 +174,12 @@ public class Fireball : MonoBehaviour
                 damaged.Add(enemy);
                 enemy.TakeDamage(explosionDamage);
             }
+
+            TutorialTarget tutorialTarget = hit.GetComponentInParent<TutorialTarget>();
+            if (tutorialTarget != null)
+            {
+                tutorialTarget.OnFireballHit();
+            }
         }
 
         Debug.Log("Fireball exploded at " + transform.position);
