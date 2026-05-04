@@ -5130,10 +5130,10 @@ MonoBehaviour:
   lifetime: 8
   spawnGracePeriod: 0.15
   spawnForwardOffset: 0.3
-  directDamage: 40
-  explosionRadius: 2
-  explosionDamage: 20
-  explosionScaleMultiplier: 3
+  directDamage: 100
+  explosionRadius: 5
+  explosionDamage: 50
+  explosionScaleMultiplier: 4
   explosionDuration: 0.3
 --- !u!114 &-869053165197743616
 MonoBehaviour:

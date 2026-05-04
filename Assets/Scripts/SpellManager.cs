@@ -40,11 +40,20 @@
         private bool isCasting;
         private SpellDefinition loadedSpell;
 
+        [Header("Held Projectile")]
+        [SerializeField, Tooltip("Scale multiplier applied to the fireball while held on the wand tip (1 = full size)")]
+        private float wandTipScale = 0.4f;
+        [SerializeField, Tooltip("Local-space offset from the castOrigin to centre the held fireball on the wand tip")]
+        private Vector3 wandTipOffset = Vector3.zero;
+
         private GameObject heldProjectile;
         private Rigidbody heldProjectileRb;
+        private Vector3 heldProjectileOriginalScale;
 
         private readonly List<MonoBehaviour> disabledScripts = new List<MonoBehaviour>();
         private readonly List<Collider> disabledColliders = new List<Collider>();
+        private readonly List<ParticleSystem> stoppedParticles = new List<ParticleSystem>();
+        private readonly List<TrailRenderer> stoppedTrails = new List<TrailRenderer>();
 
         public bool IsCasting => isCasting;
         public string CurrentPattern => currentPattern;
@@ -73,7 +82,7 @@
         {
             if (heldProjectile != null && castOrigin != null)
             {
-                heldProjectile.transform.position = castOrigin.position;
+                heldProjectile.transform.position = castOrigin.position + castOrigin.TransformDirection(wandTipOffset);
                 heldProjectile.transform.rotation = castOrigin.rotation;
             }
         }
@@ -258,6 +267,26 @@
                 }
             }
 
+            heldProjectileOriginalScale = heldProjectile.transform.localScale;
+            heldProjectile.transform.localScale = heldProjectileOriginalScale * wandTipScale;
+
+            // Stop world-space particle systems and trail renderers — they don't
+            // respect the parent scale reduction so must be hidden while held.
+            stoppedParticles.Clear();
+            foreach (var ps in heldProjectile.GetComponentsInChildren<ParticleSystem>())
+            {
+                ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                stoppedParticles.Add(ps);
+            }
+
+            stoppedTrails.Clear();
+            foreach (var tr in heldProjectile.GetComponentsInChildren<TrailRenderer>())
+            {
+                tr.emitting = false;
+                tr.Clear();
+                stoppedTrails.Add(tr);
+            }
+
             if (debugLog)
                 Debug.Log($"[SpellManager] Projectile spawned (held) for {spell.spellName}.");
         }
@@ -265,6 +294,17 @@
         private void LaunchProjectile()
         {
             if (heldProjectile == null) return;
+
+            heldProjectile.transform.localScale = heldProjectileOriginalScale;
+
+            // Re-enable particles and trails now that we're at full size.
+            foreach (var ps in stoppedParticles)
+                if (ps != null) ps.Play();
+            stoppedParticles.Clear();
+
+            foreach (var tr in stoppedTrails)
+                if (tr != null) tr.emitting = true;
+            stoppedTrails.Clear();
 
             if (heldProjectileRb != null)
             {
@@ -308,6 +348,8 @@
 
             disabledScripts.Clear();
             disabledColliders.Clear();
+            stoppedParticles.Clear();
+            stoppedTrails.Clear();
             OnSpellUnloaded?.Invoke();
         }
     }
